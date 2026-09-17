@@ -2,7 +2,7 @@
 # case: planner_step
 # component: smooth_planner
 # oracle: oracle/refctl.py
-# oracle-sha256: 79d7b3392a43
+# oracle-sha256: ac416bfa3085
 # params: max_rate=5.0 Tf=0.01
 # tol: 1.067631025224557e-06
 # dev: 8.453878153069638e-09

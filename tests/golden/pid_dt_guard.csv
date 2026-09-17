@@ -2,7 +2,7 @@
 # case: pid_dt_guard
 # component: pid
 # oracle: oracle/refctl.py
-# oracle-sha256: 79d7b3392a43
+# oracle-sha256: ac416bfa3085
 # params: kp=2.0 ki=500.0 kd=0.1 limit_out=50.0 limit_i=50.0
 # tol: 3.758027343181566e-05
 # dev: 1.1444091789769573e-06

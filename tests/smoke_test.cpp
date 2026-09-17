@@ -182,6 +182,59 @@ static void test_pid_zero_means_unlimited() {
     CHECK(near(out3, 1.0f));
 }
 
+static void test_pid_observation() {
+    // 观测出口（M1）：get_state() / status() / input_fault() 与 calc 同拍
+    ctl::PIDConfig cfg;
+    cfg.gains_.kp_ = 2.0f;
+    cfg.limits_.limit_out_ = 10.0f;
+    cfg.limits_.limit_i_ = 10.0f;
+    ctl::PID pid(cfg);
+
+    CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 2.0f));            // e=1 → p=2，未饱和
+    CHECK(near(pid.get_state().error_, 1.0f));
+    CHECK(near(pid.get_state().p_term_, 2.0f));
+    CHECK(near(pid.get_state().integral_, 0.0f));
+    CHECK(near(pid.get_state().output_, 2.0f));
+    CHECK(!pid.status().out_saturated_ && !pid.status().i_saturated_ && !pid.input_fault());
+
+    // 输出饱和：kp 大到输出被钳位
+    ctl::PIDConfig cfg2;
+    cfg2.gains_.kp_ = 100.0f;
+    cfg2.limits_.limit_out_ = 10.0f;
+    cfg2.limits_.limit_i_ = 10.0f;
+    ctl::PID pid2(cfg2);
+    CHECK(near(pid2.calc(1.0f, 0.0f, 1e-3f), 10.0f));
+    CHECK(pid2.status().out_saturated_);
+    CHECK(!pid2.status().i_saturated_);                        // ki=0，积分没被钳
+
+    // 积分饱和：ki 大到积分被预限幅钳位
+    ctl::PIDConfig cfg3;
+    cfg3.gains_.ki_ = 2000.0f;
+    cfg3.limits_.limit_out_ = 1000.0f;
+    cfg3.limits_.limit_i_ = 0.5f;
+    ctl::PID pid3(cfg3);
+    CHECK(near(pid3.calc(1.0f, 0.0f, 1e-3f), 0.5f));           // i=1.0 → 钳到 0.5
+    CHECK(pid3.status().i_saturated_);
+    CHECK(!pid3.status().out_saturated_);
+
+    // set_gains：成组替换，只动增益
+    ctl::PIDGains g;
+    g.kp_ = 1.0f;
+    pid.set_gains(g);
+    CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 1.0f));
+
+    // input_fault 粘滞：置位后保持到 reset()
+    ctl::PIDConfig cfg4;
+    ctl::PID pid4(cfg4);
+    CHECK(!pid4.input_fault());
+    CHECK(near(pid4.calc(std::nanf(""), 0.0f, 1e-3f), 0.0f));   // NaN → 返回上一拍输出（初始 0）
+    CHECK(pid4.input_fault());
+    CHECK(near(pid4.calc(0.0f, 0.0f, 1e-3f), 0.0f));
+    CHECK(pid4.input_fault());                                 // 仍然粘滞
+    pid4.reset();
+    CHECK(!pid4.input_fault());                                // reset 才清
+}
+
 int main() {
     test_pid_p_term();
     test_pid_trapezoid_integral();
@@ -190,6 +243,7 @@ int main() {
     test_pid_nan_recovery();
     test_pid_set_integral();
     test_pid_zero_means_unlimited();
+    test_pid_observation();
     test_lpf();
     test_ramp();
     test_smooth_planner();

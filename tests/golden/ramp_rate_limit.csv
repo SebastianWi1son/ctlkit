@@ -2,7 +2,7 @@
 # case: ramp_rate_limit
 # component: ramp
 # oracle: oracle/refctl.py
-# oracle-sha256: 79d7b3392a43
+# oracle-sha256: ac416bfa3085
 # params: max_rate=10.0
 # tol: 3e-06
 # dev: 0.0

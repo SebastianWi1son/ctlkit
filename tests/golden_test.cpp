@@ -87,6 +87,19 @@ float param(const Case &c, const std::string &k, float dflt = 0.0f) {
     return it == c.params.end() ? dflt : it->second;
 }
 
+ctl::PID make_pid(const Case &c) {
+    ctl::PIDConfig cfg;
+    cfg.gains_.kp_ = param(c, "kp");
+    cfg.gains_.ki_ = param(c, "ki");
+    cfg.gains_.kd_ = param(c, "kd");
+    cfg.limits_.limit_out_ = param(c, "limit_out");
+    cfg.limits_.limit_i_ = param(c, "limit_i");
+    cfg.tunings_.thresh_i_sep_ = param(c, "thresh_i_sep");
+    cfg.tunings_.max_rate_out_ = param(c, "max_rate_out");
+    cfg.tunings_.d_filter_Tf_ = param(c, "d_filter_Tf");
+    return ctl::PID(cfg);
+}
+
 struct Outcome {
     int bad;
     double max_dev;
@@ -109,19 +122,30 @@ void check_row(float got, float expected, double tol, Outcome &o) {
 bool run_case(const Case &c, Outcome &o) {
     std::size_t i;
     if (c.component == "pid") {
-        ctl::PIDConfig cfg;
-        cfg.gains_.kp_ = param(c, "kp");
-        cfg.gains_.ki_ = param(c, "ki");
-        cfg.gains_.kd_ = param(c, "kd");
-        cfg.limits_.limit_out_ = param(c, "limit_out");
-        cfg.limits_.limit_i_ = param(c, "limit_i");
-        cfg.tunings_.thresh_i_sep_ = param(c, "thresh_i_sep");
-        cfg.tunings_.max_rate_out_ = param(c, "max_rate_out");
-        cfg.tunings_.d_filter_Tf_ = param(c, "d_filter_Tf");
-        ctl::PID inst(cfg);
+        ctl::PID inst = make_pid(c);
         for (i = 0; i < c.rows.size(); ++i) {
             if (c.rows[i].size() != 4) return false;
             check_row(inst.calc(c.rows[i][0], c.rows[i][1], c.rows[i][2]), c.rows[i][3], c.tol, o);
+        }
+    } else if (c.component == "pid_flags") {
+        // 观测用例：末两列是本拍饱和标志（0/1），精确比对（不进容差）；粘滞的 input_fault 不在黄金向量里（见 smoke）
+        ctl::PID inst = make_pid(c);
+        for (i = 0; i < c.rows.size(); ++i) {
+            const std::vector<float> &r = c.rows[i];
+            if (r.size() != 6) return false;
+            const float got = inst.calc(r[0], r[1], r[2]);
+            check_row(got, r[3], c.tol, o);
+            const ctl::PIDStatus st = inst.status();
+            const float sat = st.out_saturated_ ? 1.0f : 0.0f;
+            const float isat = st.i_saturated_ ? 1.0f : 0.0f;
+            if (sat != r[4] || isat != r[5]) {
+                ++o.bad;
+                if (o.bad <= 3) {
+                    std::printf("      · 标志不符：out_sat=%g/期望 %g，i_sat=%g/期望 %g\n",
+                                static_cast<double>(sat), static_cast<double>(r[4]),
+                                static_cast<double>(isat), static_cast<double>(r[5]));
+                }
+            }
         }
     } else if (c.component == "lpf") {
         ctl::LPF inst(param(c, "Tf"));

@@ -11,7 +11,10 @@ PID::PID(const PIDConfig &cfg): cfg_(cfg),      // PID Unified Register Entrance
 
 float PID::calc(float cmd, float measure, float dt) {
     // ----- NaN Guard -----
-    if (!is_finite(cmd) || !is_finite(measure) || !is_finite(dt)) { return last_output_; }
+    if (!is_finite(cmd) || !is_finite(measure) || !is_finite(dt)) {
+        input_fault_ = true;   // 粘滞：reset() 才清
+        return last_output_;
+    }
     // ----- dt Guard -----
     if (dt <= 0.0f || dt > 0.5f) { dt = 0.001f; }
 
@@ -20,8 +23,9 @@ float PID::calc(float cmd, float measure, float dt) {
     float p_term = cfg_.gains_.kp_ * error;
     // ----- I-Term ------
     float i_term_temp = integral_ + cfg_.gains_.ki_ * dt * 0.5f * (error + error_prev_);
-    i_term_temp = constrainf(i_term_temp, cfg_.limits_.limit_i_);                                 // Integral Windup Limit
-    if (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_) { integral_ = i_term_temp; } // Integral Separation
+    float i_term_limited = constrainf(i_term_temp, cfg_.limits_.limit_i_);
+    status_.i_saturated_ = (i_term_limited != i_term_temp);                // i_saturated flags
+    if (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_) { integral_ = i_term_limited; } // Integral Separation
     // ----- D-Term -----
     float inv_dt = 1.0f / dt;
     float d_term_raw = -cfg_.gains_.kd_ * inv_dt * (measure - measure_prev_);
@@ -30,8 +34,17 @@ float PID::calc(float cmd, float measure, float dt) {
     error_prev_ = error;
     measure_prev_ = measure;
     // ----- Integrate Output-----
-    float output = constrainf((p_term + d_term + integral_), cfg_.limits_.limit_out_); // limit output（<= 0 = 不限幅）
+    float output_unclamped = p_term + d_term + integral_;
+    float output = constrainf(output_unclamped, cfg_.limits_.limit_out_); // limit output（<= 0 = 不限幅）
+    status_.out_saturated_ = (output != output_unclamped);
     output = ramp_out_.calc(output, dt);   // 斜坡恒开启；关闭时速率已归一化为“无上限”（见构造函数）
+    // --- observe cache ---
+    state_.error_ = error;
+    state_.p_term_ = p_term;
+    state_.d_term_ = d_term;
+    state_.integral_ = integral_;
+    state_.output_ = output;
+    // --- final output ---
     last_output_ = output;
     return output;
 }
@@ -43,9 +56,16 @@ void PID::reset() {
     last_output_ = 0.0f;
     d_filter_.reset();
     ramp_out_.reset();
+    state_ = PIDState();
+    status_ = PIDStatus();
+    input_fault_ = false;    // 粘滞 fault 只有这里清
 }
 
 void PID::set_integral(float x) { integral_ = constrainf(x, cfg_.limits_.limit_i_); }
+
+void PID::set_gains(const PIDGains &g) { cfg_.gains_ = g; }
+
+const PIDState &PID::get_state() const { return state_; }   // 零拷贝：引用内部缓存，内容 = 最近一次 calc
 
 // ----- Math Tools -----
 float PID::fabs(float val) { return (val > 0.0f) ? val : -val; }       // float abs

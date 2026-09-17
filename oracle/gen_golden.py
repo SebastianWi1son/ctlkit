@@ -102,6 +102,17 @@ def build_cases():
         {"kp": 0.0, "ki": 500.0, "kd": 0.0, "limit_out": 1.0, "limit_i": 0.0},
         pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
 
+    # 观测出口（M1）：输出 + 两个本拍饱和标志（0/1），标志由 oracle 逐拍算；粘滞 input_fault 不在黄金向量（见 smoke）
+    n = 12
+    add("pid_flags_sat", "pid_flags",
+        {"kp": 20.0, "ki": 2000.0, "kd": 0.0, "limit_out": 1.0, "limit_i": 0.5},
+        pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
+
+    n = 12
+    add("pid_flags_clean", "pid_flags",
+        {"kp": 4.0, "ki": 200.0, "kd": 0.0, "limit_out": 100.0, "limit_i": 100.0},
+        pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
+
     # ── LPF ──────────────────────────────────────────────
     n = 24
     add("lpf_step", "lpf", {"Tf": 0.01},
@@ -158,6 +169,20 @@ def run_case(case, dtype):
     raise ValueError(f"未知组件：{case['component']}")
 
 
+def run_pid_flags(case, dtype):
+    """观测用例：每拍返回 [输出, out_sat, i_sat] —— 标志逐拍从 oracle 读，不由被测对象算。"""
+    p = case["params"]
+    inst = PID(p.get("kp", 0.0), p.get("ki", 0.0), p.get("kd", 0.0),
+               p.get("limit_out", 0.0), p.get("limit_i", 0.0),
+               p.get("thresh_i_sep", 0.0), p.get("max_rate_out", 0.0),
+               p.get("d_filter_Tf", 0.0), dtype=dtype)
+    out = []
+    for c, m, dt in case["rows"]:
+        y = float(inst.calc(c, m, dt))
+        out.append([y, 1.0 if inst.out_saturated else 0.0, 1.0 if inst.i_saturated else 0.0])
+    return out
+
+
 def param_str(params):
     return " ".join(f"{k}={v}" for k, v in params.items())
 
@@ -170,10 +195,17 @@ def main():
     print(f"{'case':28s} {'component':15s} {'rows':>4s} {'dev(f32-f64)':>13s} {'scale':>8s} {'tol':>10s}")
 
     for case in build_cases():
-        exp64 = run_case(case, F64)
-        exp32 = run_case(case, F32)
-        dev = max(abs(a - b) for a, b in zip(exp32, exp64))
-        scale = max(1.0, max(abs(v) for v in exp64))
+        if case["component"] == "pid_flags":
+            e64 = run_pid_flags(case, F64)
+            e32 = run_pid_flags(case, F32)
+            exp64 = e64
+            dev = max(abs(a[0] - b[0]) for a, b in zip(e32, e64))   # 只拿模拟通道推容差；标志是 0/1，精确比对
+            scale = max(1.0, max(abs(r[0]) for r in exp64))
+        else:
+            exp64 = [[v] for v in run_case(case, F64)]
+            exp32 = [[v] for v in run_case(case, F32)]
+            dev = max(abs(a[0] - b[0]) for a, b in zip(exp32, exp64))
+            scale = max(1.0, max(abs(r[0]) for r in exp64))
         tol = SAFETY * dev + ABS_FLOOR * scale
 
         path = os.path.join(GOLDEN_DIR, case["name"] + ".csv")
@@ -191,10 +223,11 @@ def main():
                     "lpf": "raw dt expected",
                     "ramp": "cmd dt expected",
                     "smooth_planner": "cmd dt expected",
-                    "deadzone": "error expected"}[case["component"]]
+                    "deadzone": "error expected",
+                    "pid_flags": "cmd measure dt expected out_sat i_sat"}[case["component"]]
             f.write(f"# columns: {cols}\n")
             for row, exp in zip(case["rows"], exp64):
-                f.write(" ".join([repr(float(v)) for v in row] + [repr(exp)]) + "\n")
+                f.write(" ".join([repr(float(v)) for v in row] + [repr(v) for v in exp]) + "\n")
 
         print(f"{case['name']:28s} {case['component']:15s} {len(case['rows']):4d} "
               f"{dev:13.3e} {scale:8.3f} {tol:10.3e}")

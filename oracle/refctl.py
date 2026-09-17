@@ -109,6 +109,10 @@ class PID:
         self.last_output = d(0.0)
         self.d_filter = LPF(d_filter_Tf, dtype)
         self.ramp_out = Ramp(d(max_rate_out) if d(max_rate_out) > d(0.0) else d(FLOAT_MAX), dtype)   # 0 = 关闭 → 无上限速率
+        # 观测标志（M1）：out/i 为本拍瞬态；input_fault 为粘滞
+        self.out_saturated = False
+        self.i_saturated = False
+        self.input_fault = False
 
     def reset(self):
         d = self.dtype
@@ -118,6 +122,9 @@ class PID:
         self.last_output = d(0.0)
         self.d_filter.reset()
         self.ramp_out.reset()
+        self.out_saturated = False
+        self.i_saturated = False
+        self.input_fault = False
 
     def calc(self, cmd, measure, dt):
         d = self.dtype
@@ -125,8 +132,9 @@ class PID:
         measure = d(measure)
         dt = d(dt)
 
-        # ⓪ NaN/Inf 守卫（M0 · C1）：不更新任何状态，返回上一拍输出
+        # ⓪ NaN/Inf 守卫（M0 · C1）：不更新任何状态，返回上一拍输出；input_fault 粘滞
         if not (is_finite(cmd) and is_finite(measure) and is_finite(dt)):
+            self.input_fault = True
             return self.last_output
 
         # ① dt 守卫
@@ -139,9 +147,10 @@ class PID:
 
         # ③ I 项：梯形积分 + 预限幅 + 积分分离
         i_temp = d(self.integral + d(d(d(self.ki * dt) * d(0.5)) * d(error + self.error_prev)))
-        i_temp = d(clamp(i_temp, self.limit_i))
+        i_limited = d(clamp(i_temp, self.limit_i))
+        self.i_saturated = bool(i_limited != i_temp)          # 只报“真被钳位”（0 = 不限幅时恒 False）
         if self.thresh_i_sep <= d(0.0) or d(abs(error)) <= self.thresh_i_sep:
-            self.integral = i_temp
+            self.integral = i_limited
 
         # ④ D 项：微分先行（对测量微分）+ LPF
         inv_dt = d(d(1.0) / dt)
@@ -154,6 +163,7 @@ class PID:
 
         # ⑥ 合成输出 → 对称限幅 → 输出斜坡
         out = d(clamp(d(d(p_term + d_term) + self.integral), self.limit_out))
+        self.out_saturated = bool(out != d(d(p_term + d_term) + self.integral))   # 限幅前取未钳位量（roadmap D-3）
         out = self.ramp_out.calc(out, dt)   # 斜坡恒开启（关闭时速率 = 无上限，直通）
         self.last_output = out
         return out

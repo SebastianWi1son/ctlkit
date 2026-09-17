@@ -43,15 +43,32 @@ struct PIDConfig {
     PIDTunings tunings_;
 };
 
+// --- observe sink ---
+struct PIDState {
+    float error_ = 0.0f;
+    float p_term_ = 0.0f;
+    float d_term_ = 0.0f;
+    float integral_ = 0.0f;
+    float output_ = 0.0f;
+};
+
+// 本拍瞬态布尔量（A 方案）：粘滞的 input_fault 不在此，见 input_fault()
+struct PIDStatus {
+    bool out_saturated_ = false;            // is_out_limited
+    bool i_saturated_ = false;              // is_i_out_limited
+};
+
 class PID {
 public:
     explicit PID(const PIDConfig &cfg);     // 显式确保PIDConfig作为参数参与构造
     CTL_NODISCARD float calc(float cmd, float measure, float dt);
     void reset();
-
-    /// @brief bumpless transfer: integral start from set point
-    /// @param x
     void set_integral(float x);
+    void set_gains(const PIDGains &g);
+    const PIDState &get_state() const;
+    PIDStatus status() const { return status_; }
+    bool input_fault() const { return input_fault_; }   // 粘滞：置位后保持到 reset()（与 status() 的本拍瞬态不同）
+
 private:
     // ----- Math Tools -----
     static float fabs(float val);
@@ -64,6 +81,10 @@ private:
     float error_prev_;
     float measure_prev_;
     float last_output_;
+    // --- observe ---
+    PIDState state_;
+    PIDStatus status_;
+    bool input_fault_ = false;   // 粘滞 fault（A 方案拆出）：只有 reset() 清
     // --- dsp tools ---
     LPF d_filter_;
     Ramp ramp_out_;
