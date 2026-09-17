@@ -115,7 +115,7 @@ python3 scripts/downstream_diff.py <下游>                                     
 
 ## 版本与许可
 
-- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.0`（API 冻结版）**。版本的**唯一事实源**是 `inc/ctl/version.hpp`（`CMakeLists.txt` 从它解析；下游拷贝后靠它自证版本）。
+- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.1`**（在 v0.1.0 冻结面上的只增版本，含一处行为修正）。版本的**唯一事实源**是 `inc/ctl/version.hpp`（`CMakeLists.txt` 从它解析；下游拷贝后靠它自证版本）。
 - 许可：**MIT**（见 [LICENSE](LICENSE)）。
 - 源码归档快照（第三方 `Liu-Curiousity/pid` 与历史 `cyclotron_foc` 副本）**不随仓库分发**：
   本地保留在 `docs/research/reference/`（已 gitignore）；第三方部分无 LICENSE，不可再分发。

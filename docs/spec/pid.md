@@ -42,6 +42,7 @@ generated: false
 ```
 ⓪ NaN/Inf 守卫：cmd / measure / dt 任一非有限 → 本拍**不更新任何状态**（含 D 滤波与输出斜坡的内部状态），
                  直接返回上一拍输出（`last_output_`；代码里写成自实现的 `is_finite`，不引 <cmath>）
+     ⚠ 这一拍 `state()` / `status()` 也**保持上一拍内容不变**（含 `dt_rejected_`）——早退发生在写状态之前
 ① dt 守卫：dt < 1e-9 或 dt > 0.5（含 dt <= 0）→ dt := 0.001，并置 status().dt_rejected_
      （下界防 1/dt 溢出污染 D 状态；上界防垃圾 dt —— 见 docs/TODO.md T2）
 ② error = cmd - measure;  p_term = kp · error
@@ -148,12 +149,12 @@ struct PIDPorts {
 
 | 版本 | 变更 |
 |---|---|
-| Unreleased | 新增 `PIDConfig` 具名链式设置器（8 个字段各一个；只增不改，结构仍为聚合，位置初始化不失效） |
-| Unreleased | 新增 `status().i_frozen_`（分离冻结出口，与 `i_saturated_` 互补：一个答"顶住了吗"、一个答"这拍积分了吗"） |
-| Unreleased | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
-| Unreleased | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
-| Unreleased | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
-| Unreleased | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |
-| Unreleased | M0：「`0` 语义统一（D-1）——限幅类 `<= 0` = 不限幅；斜坡 0=关闭在构造期归一化；**行为变更点：`limit = 0` 的既有配置** |
-| Unreleased | M0 部分：NaN/Inf 守卫（返回上一拍输出、零污染）、`set_integral`（clamp 注入）、`CTL_NODISCARD` |
+| 0.1.1 | 新增 `PIDConfig` 具名链式设置器（8 个字段各一个；只增不改，结构仍为聚合，位置初始化不失效） |
+| 0.1.1 | 新增 `status().i_frozen_`（分离冻结出口，与 `i_saturated_` 互补：一个答"顶住了吗"、一个答"这拍积分了吗"） |
+| 0.1.1 | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
+| 0.1.0 | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
+| 0.1.0 | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
+| 0.1.0 | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |
+| 0.1.0 | M0：「`0` 语义统一（D-1）——限幅类 `<= 0` = 不限幅；斜坡 0=关闭在构造期归一化；**行为变更点：`limit = 0` 的既有配置** |
+| 0.1.0 | M0 部分：NaN/Inf 守卫（返回上一拍输出、零污染）、`set_integral`（clamp 注入）、`CTL_NODISCARD` |
 | v0.0.1 | 库化（`foc::algo` → `ctl`），行为未变 |

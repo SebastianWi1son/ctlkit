@@ -63,4 +63,4 @@ return error                                   # 区外原样
 
 | 版本 | 变更 |
 |---|---|
-| Unreleased | 库化（`foc::algo` → `ctl`，接入 CMake、spec、oracle），行为未变 |
+| 0.1.0 | 库化（`foc::algo` → `ctl`，接入 CMake、spec、oracle），行为未变 |

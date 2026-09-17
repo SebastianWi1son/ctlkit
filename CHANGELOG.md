@@ -8,7 +8,7 @@ generated: false
 既有字段名 / 语义 / `calc` 签名只增不改，破坏性变更进 major。
 v0.0.x 是库化与加固阶段（M0 之前，无兼容承诺）。路线见 `docs/roadmap.md`。
 
-## [Unreleased]
+## [0.1.1] - 2026-09-17
 
 ### Added
 - `PIDConfig` 具名链式设置器（`kp()/ki()/kd()/limit_out()/limit_i()/thresh_i_sep()/max_rate_out()/d_filter_Tf()`）：
