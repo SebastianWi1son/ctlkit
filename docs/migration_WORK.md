@@ -70,6 +70,18 @@ python3 <ctlkit>/scripts/downstream_diff.py <下游>          # 自动识别 ven
 python3 <ctlkit>/scripts/downstream_diff.py --selftest      # 先自测工具本身（7 例，含改坏必红）
 ```
 
+### 2.4.1 行为零漂移的最硬证据（可选但推荐）
+
+下游测试通常只断言、不打印，数字看不见 → 用**下游自带的 demo 逐字节比对**补一刀：
+
+```bash
+# 迁移前的版本放进临时 worktree，两边跑同一个 demo，diff 输出
+git worktree add --detach /tmp/pre <迁移前 sha> && cmake -S /tmp/pre -B /tmp/pre/b && cmake --build /tmp/pre/b -j
+/tmp/pre/b/example_foc > /tmp/pre.txt 2>&1
+cmake --build build -j && ./build/example_foc > /tmp/post.txt 2>&1
+diff /tmp/pre.txt /tmp/post.txt && echo 行为零漂移
+```
+
 ### 2.5 记录与回滚
 
 - 记录：上游 sha + 下游基线 sha + 版本（`inc/ctl/version.hpp` 为准）+ 三条校验结论 → §4。
@@ -88,4 +100,4 @@ python3 <ctlkit>/scripts/downstream_diff.py --selftest      # 先自测工具本
 
 | 日期 | 下游 | 上游版本/sha | 下游基线 sha | 方式 | ① 库 19/19 | ② 下游测试 | ③ diff | 结论 |
 |---|---|---|---|---|---|---|---|---|
-| 2026-09-17 | cyclotron/foc | `dev/v0.1.1-core` @ `a1d83c4`（未发布：v0.1.0 + i_frozen_ + 链式设置器） | `13570d0`（文档体系重排） | ③ vendor + 转发头 | —（目标仓非本库） | ✅ 5/5（收敛数值与迁移前一致） | ✅ 副本 12 处 identical · 转发头 5 处 | ✅ **通过**：迁移提交 `223dd99`；本仓 0 语义专项核对无雷区 |
+| 2026-09-17 | cyclotron/foc | `dev/v0.1.1-core` @ `a1d83c4`（未发布：v0.1.0 + i_frozen_ + 链式设置器） | `13570d0`（文档体系重排） | ③ vendor + 转发头 | —（目标仓非本库） | ✅ 5/5 + **demo 输出 33 行逐字节相同** | ✅ 副本 12 处 identical · 转发头 5 处 | ✅ **通过**：迁移提交 `223dd99`；本仓 0 语义专项核对无雷区 |
