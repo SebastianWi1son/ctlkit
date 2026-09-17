@@ -110,14 +110,14 @@ bool run_case(const Case &c, Outcome &o) {
     std::size_t i;
     if (c.component == "pid") {
         ctl::PIDConfig cfg;
-        cfg.kp_ = param(c, "kp");
-        cfg.ki_ = param(c, "ki");
-        cfg.kd_ = param(c, "kd");
-        cfg.limit_out_ = param(c, "limit_out");
-        cfg.limit_i_ = param(c, "limit_i");
-        cfg.thresh_i_sep_ = param(c, "thresh_i_sep");
-        cfg.max_rate_out_ = param(c, "max_rate_out");
-        cfg.d_filter_Tf_ = param(c, "d_filter_Tf");
+        cfg.gains_.kp_ = param(c, "kp");
+        cfg.gains_.ki_ = param(c, "ki");
+        cfg.gains_.kd_ = param(c, "kd");
+        cfg.limits_.limit_out_ = param(c, "limit_out");
+        cfg.limits_.limit_i_ = param(c, "limit_i");
+        cfg.tunings_.thresh_i_sep_ = param(c, "thresh_i_sep");
+        cfg.tunings_.max_rate_out_ = param(c, "max_rate_out");
+        cfg.tunings_.d_filter_Tf_ = param(c, "d_filter_Tf");
         ctl::PID inst(cfg);
         for (i = 0; i < c.rows.size(); ++i) {
             if (c.rows[i].size() != 4) return false;

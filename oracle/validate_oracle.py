@@ -197,12 +197,51 @@ def validate_deadzone():
     check("软模式单调不降", mono)
 
 
+def validate_nan_guard():
+    print("\n③++ PID 非法输入守卫（M0 · C1，与 C++ 侧同语义）")
+    pid = PID(0.0, 1000.0, 0.0, 1000.0, 1000.0)      # 输出 = 积分项
+    base = float(pid.calc(1.0, 0.0, 0.001))           # 0.5
+    nan = float("nan")
+    inf = float("inf")
+    hold = [float(pid.calc(nan, 0.0, 0.001)),
+            float(pid.calc(1.0, nan, 0.001)),
+            float(pid.calc(1.0, 0.0, nan)),
+            float(pid.calc(inf, 0.0, 0.001))]
+    resumed = float(pid.calc(1.0, 0.0, 0.001))        # 状态没被污染 → 0.5+1.0
+    check("非法输入回退上一拍输出", all(abs(v - base) < 1e-15 for v in hold), f"{hold}")
+    check("状态零污染（恢复后继续累积）", abs(resumed - 1.5) < 1e-15, f"{resumed}")
+
+
+def validate_zero_semantics():
+    print("\n③+++ 0 语义统一（roadmap D-1）")
+    # 限幅类：0 = 不限幅（不再“钳死到 0”，默认配置输出不再恒 0）
+    pid = PID(4.0, 200.0, 0.0, 0.0, 0.0)
+    out = 0.0
+    for _ in range(20):
+        out = float(pid.calc(1.0, 0.0, 0.001))
+    check("limit=0 → 不限幅（积分自由累积）", abs(out - 7.9) < 1e-9, f"{out:.6f}")
+
+    # 输出限幅仍生效（> 0 时），而 limit_i=0 时积分不被限
+    pid2 = PID(0.0, 500.0, 0.0, 1.0, 0.0)
+    out2 = 0.0
+    for _ in range(10):
+        out2 = float(pid2.calc(1.0, 0.0, 0.001))
+    check("limit_out>0 → 仍限幅；limit_i=0 → 不限积分", abs(out2 - 1.0) < 1e-12, f"{out2:.6f}")
+
+    # 斜坡：Ramp 原语 0 = 冻结（不变）；PID 层 0 = 关闭 → 直通（构造期归一化，不串层）
+    check("Ramp(0) 仍冻结（原语语义不变）", float(Ramp(0.0).calc(5.0, 0.01)) == 0.0)
+    pid3 = PID(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)      # max_rate_out = 0
+    check("PID max_rate_out=0 → 直通（不冻结）", abs(float(pid3.calc(5.0, 0.0, 0.01)) - 5.0) < 1e-15)
+
+
 def main():
     print("oracle 自验（外借尺子：scipy.signal.lfilter / fractions.Fraction / 解析式）")
     validate_lpf()
     validate_pid_linear()
     validate_exact()
     validate_deadzone()
+    validate_nan_guard()
+    validate_zero_semantics()
     print()
     if FAIL:
         print(f"❌ {FAIL} 项未通过 —— oracle 不可信，先修 oracle")

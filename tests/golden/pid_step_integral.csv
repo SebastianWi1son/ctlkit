@@ -2,7 +2,7 @@
 # case: pid_step_integral
 # component: pid
 # oracle: oracle/refctl.py
-# oracle-sha256: 78124f941ca1
+# oracle-sha256: 79d7b3392a43
 # params: kp=4.0 ki=200.0 kd=0.0 limit_out=1000.0 limit_i=1000.0
 # tol: 1.0224722656193155e-05
 # dev: 3.7384033202414457e-07

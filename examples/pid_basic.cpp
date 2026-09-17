@@ -8,10 +8,10 @@
 
 int main() {
     ctl::PIDConfig cfg;
-    cfg.kp_ = 4.0f;
-    cfg.ki_ = 200.0f;
-    cfg.limit_out_ = 12.0f;   // 输出限幅（如电压上限）
-    cfg.limit_i_ = 12.0f;     // 积分限幅（抗饱和预限幅）
+    cfg.gains_.kp_ = 4.0f;
+    cfg.gains_.ki_ = 200.0f;
+    cfg.limits_.limit_out_ = 12.0f;   // 输出限幅（如电压上限）
+    cfg.limits_.limit_i_ = 12.0f;     // 积分限幅（抗饱和预限幅）
 
     ctl::PID pid(cfg);
 

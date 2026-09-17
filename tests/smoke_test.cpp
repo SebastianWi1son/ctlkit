@@ -29,8 +29,8 @@ static bool near(float a, float b, float tol = 1e-6f) { return std::fabs(a - b) 
 
 static void test_pid_p_term() {
     ctl::PIDConfig cfg;
-    cfg.kp_ = 2.0f;
-    cfg.limit_out_ = 100.0f;
+    cfg.gains_.kp_ = 2.0f;
+    cfg.limits_.limit_out_ = 100.0f;
     ctl::PID pid(cfg);
 
     CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 2.0f));   // u = kp·e
@@ -39,9 +39,9 @@ static void test_pid_p_term() {
 
 static void test_pid_trapezoid_integral() {
     ctl::PIDConfig cfg;
-    cfg.ki_ = 1000.0f;
-    cfg.limit_out_ = 1000.0f;
-    cfg.limit_i_ = 1000.0f;
+    cfg.gains_.ki_ = 1000.0f;
+    cfg.limits_.limit_out_ = 1000.0f;
+    cfg.limits_.limit_i_ = 1000.0f;
     ctl::PID pid(cfg);
 
     // 梯形积分：i = ki·dt·(e + e_prev)/2 = 1000·0.001·(1+0)/2 = 0.5
@@ -52,12 +52,12 @@ static void test_pid_trapezoid_integral() {
 
 static void test_pid_derivative_on_measurement() {
     ctl::PIDConfig cfg;
-    cfg.kd_ = 0.1f;
-    cfg.limit_out_ = 100.0f;
-    cfg.limit_i_ = 100.0f;
+    cfg.gains_.kd_ = 0.1f;
+    cfg.limits_.limit_out_ = 100.0f;
+    cfg.limits_.limit_i_ = 100.0f;
     ctl::PID pid(cfg);
 
-    pid.calc(0.0f, 0.0f, 1e-3f);   // 建立 measure_prev_ 状态
+    CHECK(near(pid.calc(0.0f, 0.0f, 1e-3f), 0.0f));   // 建立 measure_prev_ 状态（首拍输出 0）
     // d = -kd·(m - m_prev)/dt = -0.1·(0.1-0)/0.001 = -10
     // 设定值（cmd=0）不参与微分 → 无微分冲击（微分先行）
     CHECK(near(pid.calc(0.0f, 0.1f, 1e-3f), -10.0f, 1e-4f));
@@ -65,9 +65,9 @@ static void test_pid_derivative_on_measurement() {
 
 static void test_pid_dt_guard() {
     ctl::PIDConfig cfg;
-    cfg.ki_ = 1000.0f;
-    cfg.limit_out_ = 1000.0f;
-    cfg.limit_i_ = 1000.0f;
+    cfg.gains_.ki_ = 1000.0f;
+    cfg.limits_.limit_out_ = 1000.0f;
+    cfg.limits_.limit_i_ = 1000.0f;
     ctl::PID pid(cfg);
 
     // 非法 dt（<=0 或 >0.5）被守卫替换为 1ms → 积分贡献仍按 1ms 计（0.5）
@@ -126,11 +126,70 @@ static void test_deadzone() {
     CHECK(near(off.calc(0.7f), 0.7f));
 }
 
+static void test_pid_nan_recovery() {
+    ctl::PIDConfig cfg;
+    cfg.gains_.ki_ = 1000.0f;
+    cfg.limits_.limit_out_ = 1000.0f;
+    cfg.limits_.limit_i_ = 1000.0f;
+    ctl::PID pid(cfg);
+
+    // 第一拍：积分 = 1000·0.001·(1+0)/2 = 0.5，输出 0.5（成为“上一拍输出”）
+    CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 0.5f));
+    // 非法输入：返回上一拍输出 0.5，且不更新任何状态（含积分/D 滤波/斜坡）
+    CHECK(near(pid.calc(std::nanf(""), 0.0f, 1e-3f), 0.5f));   // cmd = NaN
+    CHECK(near(pid.calc(1.0f, std::nanf(""), 1e-3f), 0.5f));   // measure = NaN
+    CHECK(near(pid.calc(1.0f, 0.0f, std::nanf("")), 0.5f));    // dt = NaN
+    // 恢复：状态没被污染，继续累积 → (1+1)/2 → +1.0 → 1.5
+    CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 1.5f));
+}
+
+static void test_pid_set_integral() {
+    ctl::PIDConfig cfg;
+    cfg.limits_.limit_out_ = 100.0f;
+    cfg.limits_.limit_i_ = 10.0f;   // kp/ki/kd 全 0：输出 = 积分项
+    ctl::PID pid(cfg);
+
+    pid.set_integral(3.0f);
+    CHECK(near(pid.calc(0.0f, 0.0f, 1e-3f), 3.0f));    // 注入即生效
+
+    pid.set_integral(999.0f);                          // 注入值被 clamp 到 limit_i_
+    CHECK(near(pid.calc(0.0f, 0.0f, 1e-3f), 10.0f));
+}
+
+static void test_pid_zero_means_unlimited() {
+    // 0 语义统一（roadmap D-1）：limit_out_ / limit_i_ = 0 → 不限幅
+    ctl::PIDConfig cfg;
+    cfg.gains_.kp_ = 4.0f;
+    cfg.gains_.ki_ = 200.0f;
+    ctl::PID pid(cfg);
+    float out = 0.0f;
+    for (int k = 0; k < 20; ++k) { out = pid.calc(1.0f, 0.0f, 1e-3f); }
+    CHECK(near(out, 7.9f, 1e-4f));   // 积分自由累积；旧语义（0=钳死）下这里会是 0
+
+    // limit_i_ = 0 → 注入不被 clamp
+    ctl::PIDConfig cfg2;
+    ctl::PID pid2(cfg2);
+    pid2.set_integral(999.0f);
+    CHECK(near(pid2.calc(0.0f, 0.0f, 1e-3f), 999.0f));
+
+    // limit_out_ > 0 仍限幅，而 limit_i_ = 0 时积分不被限
+    ctl::PIDConfig cfg3;
+    cfg3.gains_.ki_ = 500.0f;
+    cfg3.limits_.limit_out_ = 1.0f;
+    ctl::PID pid3(cfg3);
+    float out3 = 0.0f;
+    for (int k = 0; k < 10; ++k) { out3 = pid3.calc(1.0f, 0.0f, 1e-3f); }
+    CHECK(near(out3, 1.0f));
+}
+
 int main() {
     test_pid_p_term();
     test_pid_trapezoid_integral();
     test_pid_derivative_on_measurement();
     test_pid_dt_guard();
+    test_pid_nan_recovery();
+    test_pid_set_integral();
+    test_pid_zero_means_unlimited();
     test_lpf();
     test_ramp();
     test_smooth_planner();

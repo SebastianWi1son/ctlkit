@@ -91,6 +91,17 @@ def build_cases():
         pid_rows(const(1.0, n), const(0.3, n),
                  ladder([0.001, 0.0, -0.5, 2.0, 0.001, 0.6, 0.001, 0.0005], n)))
 
+    # 0 语义统一（roadmap D-1）：限幅类 limit = 0 → 不限幅
+    n = 20
+    add("pid_limit_unlimited", "pid",
+        {"kp": 4.0, "ki": 200.0, "kd": 0.0, "limit_out": 0.0, "limit_i": 0.0},
+        pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
+
+    n = 24
+    add("pid_i_unlimited_out_limited", "pid",
+        {"kp": 0.0, "ki": 500.0, "kd": 0.0, "limit_out": 1.0, "limit_i": 0.0},
+        pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
+
     # ── LPF ──────────────────────────────────────────────
     n = 24
     add("lpf_step", "lpf", {"Tf": 0.01},

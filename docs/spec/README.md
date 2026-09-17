@@ -17,8 +17,8 @@ generated: false
 |---|---|
 | 语言/依赖 | C++11；纯 `float`；无 STL / 无堆 / 无异常 |
 | 时间单位 | 秒（`dt` 由调用方每拍传入） |
-| `0 = disabled` | 已统一：`thresh_i_sep_` / `max_rate_out_` / `d_filter_Tf_`（PID）、`Tf=0` → LPF 直通 |
-| ⚠ `0` 语义未统一 | **限幅类**字段（`limit_out_` / `limit_i_`）为 `0` 时是「钳死到 0」而非「不限幅」；定案见 `../roadmap.md` §6 D-1 |
+| `0` 语义（已统一，D-1 定案） | 分三类：① **`0` = 不限幅**（`limit_out_` / `limit_i_`）；② **`0` = 关闭特性**（`thresh_i_sep_` / `max_rate_out_`，PID 层）；③ **`0` = 自然退化值**（`d_filter_Tf_=0` 直通、`Deadzone.range=0` 直通） |
+| 原语层保留自己的语义 | `Ramp(0)` = **冻结输出**（不是“关闭”）；PID 关闭斜坡时在**构造期**把速率归一化为“无上限”，不改 `Ramp` 的 0 语义、也不依赖它 |
 | dt 守卫 | **仅 PID 内部**有：`dt <= 0 或 dt > 0.5` → 强制 `1ms`；LPF / Ramp / SmoothPlanner **无守卫**，调用方保证 `dt > 0` |
 | 限幅 | 对称 `clamp(x, ±limit)`；非对称限幅为候选 A3（未实现） |
 | 状态注入 | `LPF` / `Ramp` / `SmoothPlanner` 有 `set_state(x)`（bumpless transfer）；`PID` 暂无（候选 A2，未实现）；`Deadzone` 无状态，不需要 |

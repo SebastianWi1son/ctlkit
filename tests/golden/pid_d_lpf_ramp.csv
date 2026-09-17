@@ -2,7 +2,7 @@
 # case: pid_d_lpf_ramp
 # component: pid
 # oracle: oracle/refctl.py
-# oracle-sha256: 78124f941ca1
+# oracle-sha256: 79d7b3392a43
 # params: kp=2.0 ki=50.0 kd=0.5 limit_out=50.0 limit_i=20.0 max_rate_out=5.0 d_filter_Tf=0.005
 # tol: 1.0131130218350428e-06
 # dev: 1.6391277293803519e-09

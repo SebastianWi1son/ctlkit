@@ -2,7 +2,7 @@
 # case: lpf_passthrough
 # component: lpf
 # oracle: oracle/refctl.py
-# oracle-sha256: 78124f941ca1
+# oracle-sha256: 79d7b3392a43
 # params: Tf=0.0
 # tol: 2e-06
 # dev: 0.0

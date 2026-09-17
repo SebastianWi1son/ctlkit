@@ -3,134 +3,64 @@ class: work
 generated: false
 accepted: false
 ---
-# typing_WORK — 手敲代码缓冲区（一次一个模块）
+# typing_WORK — 改造缓冲区（只收"需要改动的文件"）
 
-> **类：D 施工单** —— 全部模块敲完并验收后，本文件移出 `docs/`（或改 `accepted: true` 交给门禁拦下）。
-> **规矩**：我只准备内容、不代抄；每次只产出**一个模块**；你在敲的过程中随时追问、随时改决策；
-> 任何决策若改了行为，必须**同批**同步 `docs/spec/` 与黄金向量（否则门禁和回归都会说谎）。
+> **类：D 施工单** —— 全部模块敲完并验收后，本文件移出 `docs/`（或标 `accepted: true` 交给门禁拦）。
+>
+> **规矩**：
+> 1. 缓冲区**只装需要改动的代码**。与上游逐字一致、只做机械库化的文件**不进缓冲区**（`deadzone` 就是例子）。
+> 2. 每次只产出**一个模块**；模块 = 一个可独立编译 + 跑测试的改动单元。
+> 3. 你手敲 `inc/` 与 `src/` 下的**改动**；`tests/` · `examples/` · `oracle/` · `docs/` 由我同步。
+> 4. 行为**变了**的改动必须同批同步 `docs/spec/` + 黄金向量；行为**没变**的改动必须证明"黄金回归仍全绿"。
 
 ## 1. 流程
 
-1. 我给出**模块 N**：文件、真实代码、逐行理由、敲时注意点、验证命令、待你拍板的决策点。
-2. 你阅读 + 手敲；任何一行都可以叫我先解释，或提出改法。
-3. 敲完跑验证（编译 + 测试）；不通过就回到第 2 步讨论。
-4. 你把决策结论告诉我 → 我更新代码 / spec / 黄金向量（改动逐处给你过目）。
-5. 你说「下一个」→ 我给模块 N+1。
+1. 我给**模块 N**：改哪些文件、before → after、逐段理由、验证命令、待你拍板的决策点。
+2. 你阅读 + 手敲；任何一行可叫我先讲，或直接提改法。
+3. 敲完跑验证（编译 + ctest）。
+4. 你给我决策结论 → 我同步 spec / 黄金向量 / 测试（逐处给你过目）。
+5. 你说「下一个」→ 模块 N+1。
 
-## 2. 模块清单（缓冲区）
+## 2. 模块清单（按推荐顺序；**顺序本身是决策 0**）
 
-| # | 模块 | 文件 | 行数 | 状态 | 主要学习点 |
+| # | 模块 | 改哪些文件 | 改动性质 | 行为变化 | 决策点 |
 |---|---|---|---|---|---|
-| 1 | **Deadzone** | `inc/ctl/deadzone.hpp` + `src/deadzone.cpp` | 23 + 13 | ⬅ **本次产出** | 最小完整组件；无状态；软/硬死区；边界与除零；库内唯一 `<cmath>` |
-| 2 | LPF | `inc/ctl/lpf.hpp` + `src/lpf.cpp` | 23 + 17 | 待 | 有状态组件：`reset()` / `set_state()`；`Tf=0` 直通；无 dt 守卫的取舍 |
-| 3 | Ramp | `inc/ctl/ramp.hpp` + `src/ramp.cpp` | 23 + 20 | 待 | 状态写回铁律；`max_rate=0` 冻结语义（roadmap 决策点 D-1 的一半） |
-| 4 | SmoothPlanner | `inc/ctl/smooth_planner.hpp` + `src/smooth_planner.cpp` | 26 + 16 | 待 | 组件组合；三层状态一致注入 |
-| 5 | **PID** | `inc/ctl/pid.hpp` + `src/pid.cpp` | 47 + 48 | 待 | 核心：calc 六步、梯形积分、积分分离、静态抗饱和、微分先行、dt 守卫；6 个改进点入口 |
-| 6 | 验证链 | `tests/golden_test.cpp` + `oracle/` 走一遍 | — | 待 | 黄金向量从哪来；故意改坏一行 → 变红 |
-| 7 | PID 端口骨架 | 落地 `docs/design/pid_config_and_ports.md` | — | 待（取决于模块 5 的决策） | 生命周期三分：Config / Ports / State；calc 签名冻结 |
+| 1 | ✅ PID 加固三件套（已敲完） | `inc/ctl/pid.hpp` · `src/pid.cpp` | `CTL_NODISCARD`、NaN/Inf 守卫、`set_integral` | 仅"非法输入"路径 | N1~N5 已定案（见 §4） |
+| 2 | ✅ `0` 语义统一（已由 AI 执行） | `inc/ctl/pid.hpp` · `src/pid.cpp` · oracle · docs | 限幅类 `<=0 = 不限幅`；斜坡 0=关闭构造期归一化 | ⚠ 变（`limit = 0` 的配置） | 按提案定案（见 §4） |
+| 3 | ✅ 配置分组（已完成） | `inc/ctl/pid.hpp` · `src/pid.cpp` | `PIDConfig` 8 字段平铺 → `gains/limits/tuning` 三组 | 不变（逐字等价） | D3-1 下划线 · D3-2 命名 · D3-3 旧名别名 · D3-4 端口同批？ |
+| 4 | 观测出口（M1）⬅ 下一个候选（待你定：接手 / 我做） | `inc/ctl/pid.hpp` · `src/pid.cpp` | `PIDState` / `PIDFlags` / `snapshot()` / `set_gains` | 不变（纯新增） | 出参 vs 返回值 · 缓存放哪 |
+| 5 | 外部微分注入（M2，A1）**+ `PIDPorts` 首次登场** | `inc/ctl/pid.hpp` · `src/pid.cpp` | `ports.measure_dot` 替代环内二次差分；`calc` 签名冻结 | 默认不变 | 指针 vs setter（原文档方案 a/b） |
+| 6 | 条件积分（M2，F3/B1） | `inc/ctl/pid.hpp` · `src/pid.cpp` + 调用点 | `ports.limit`：受限时积分只缩不涨 | 变（饱和路径） | 入口形态确认 |
+| 7 | 前馈通道（M2，F1） | `inc/ctl/pid.hpp` · `src/pid.cpp` | `gains.kff/kdff` + `ports.ff/ff_dot` | 变（默认关闭） | FF 与限幅的顺序（设计稿 Q3） |
+| 8 | 目标 LPF（M2，F2） | 调用点（复用 `LPF`，**不进 PID**） | 参考平滑外置组合 | 调用点新增 | 复用 `LPF` vs 新组件 |
+| 9 | M3 打磨（A3/B2/C2/F5） | 视决策：`inc/ctl/pid.hpp` · `src/pid.cpp`，或抽公共原语头（⬜ 计划） | 非对称限幅 / 分离迟滞 / dt 可配置 / 缩放钩子 | 各项独立 | 逐项定 |
+| 10 | M4 前瞻 | — | 2-DOF / back-calculation / relax / 自整定 | — | 仅预研 |
 
-> 状态只在你确认敲完（或改完）后由我改成 ✅；「待」= 内容还没给你。
+> **端口结构体为什么不在模块 3**：`PIDPorts` 的每个字段都必须被行为实现消费，否则就是"静默无效"的 API。
+> 所以它推迟到模块 5（第一个真正消费端口的特性 = 外部微分注入），在那之前 `calc` 签名不动。
 
-## 3. 模块 1：Deadzone
+## 3. 模块 3：配置分组（✅ 已完成）
 
-### 3.1 代码（真实代码，与仓库逐字一致）
+- **你**敲了 `inc/ctl/pid.hpp` 的分组结构：`PIDGains` / `PIDLimits` / `PIDTunings` + `PIDConfig` 成员
+  `gains_` / `limits_` / `tunings_`（字段名与旧版一致）；
+- **我**完成了 `src/pid.cpp` 的 9 个访问点、`tests/` 与 `examples/` 的同步、文档与 CHANGELOG；
+- **行为逐字等价**：黄金 16/16 全绿、smoke 全过、0 warning；**未重生成黄金向量**（oracle 未改）；
+- 定案：**字段名不改、不留旧路径别名**（`cfg.kp_` 不再编译）；`PIDPorts` 推迟到第一个真正消费端口的模块。
 
-`inc/ctl/deadzone.hpp`
-
-```cpp
-#pragma once
-
-#include <cmath>
-
-// ctlkit —— 嵌入式实时控制原语（上游库）
-// 来源：cyclotron/foc 的 foc::algo::Deadzone（其自身复用搬运自 lunokhod）
-// 行为契约：docs/spec/deadzone.md
-// 抛物线软死区：|e| < range 时按 e·(|e|/range) 衰减（0 处增益 0，|e|=range 处连续）；
-// 区外原样；range <= 0 时软分支恒不成立 → 天然直通，无除零。
-// 注意：这是库内唯一直接使用 <cmath> 的组件（其余组件自带 float 原语）。
-
-namespace ctl {
-
-class Deadzone {
-public:
-    Deadzone(float range = 0.0f, bool soft = true);
-    float calc(float error) const;
-private:
-    float range_;
-    bool soft_;
-};
-
-}  // namespace ctl
-```
-
-`src/deadzone.cpp`
-
-```cpp
-#include "ctl/deadzone.hpp"
-
-namespace ctl {
-
-Deadzone::Deadzone(float range, bool soft) : range_(range), soft_(soft) {}
-
-float Deadzone::calc(float error) const {
-    float abs_error = std::fabs(error);
-    if (abs_error < range_) return soft_ ? (error * (abs_error / range_)) : 0.0f;
-    return error;
-}
-
-}  // namespace ctl
-```
-
-### 3.2 逐行理由
-
-| 行 | 理由 |
-|---|---|
-| `#include <cmath>` | 只为 `std::fabs`。这是**全库唯一**的标准数学头依赖（见决策点 D1-1） |
-| `float calc(float error) const` | 无状态纯函数：同一输入永远同一输出；`const` 让编译器可放宽优化。**注意它没有 `reset()/set_state()`** —— Deadzone 没有状态要复位（决策点 D1-5） |
-| `Deadzone(float range = 0.0f, bool soft = true)` | 默认值 = 禁用（`range=0` → 直通）。这是全库 5 个组件里唯一带默认构造参数的（决策点 D1-3） |
-| `float abs_error = std::fabs(error);` | 先取绝对值，后面所有比较都用它 |
-| `if (abs_error < range_)` | **严格小于**：边界 `|e| == range` 走"区外原样"分支 —— 这保证了软模式在边界连续（`e·(range/range) = e`） |
-| `soft_ ? (error * (abs_error / range_)) : 0.0f` | 软：抛物线衰减（0 处增益 0、边界增益 1）；硬：带内直接归零（不连续，属设计意图）。**注意 `0.0f` 的 `f` 后缀**，漏了会被提升成 double 再截断 |
-| `return error;` | 区外原样（不在带内就不动它） |
-
-### 3.3 敲时注意点（容易敲错的四处）
-
-1. **`abs_error / range_` 不要提到 `if` 外面**：`range_ = 0` 时那会除零 → NaN。
-   现在的结构是"先比大小、后相除"，从结构上就避开了这个坑（FOC_MATH_SPEC §7 记着 legacy 就是这么踩的）。
-2. **边界用严格小于**：写成 `<=` 会让 `|e| = range` 时也进带内（软模式结果不变，硬模式会多归零一个点，
-   黄金向量 `deadzone_hard` 会立刻变红）。
-3. **三元运算符的两边类型**：`(error * (abs_error / range_))` 是 float，`0.0f` 也是 float —— 类型一致。
-4. **`const` 不能漏**：漏了编译器不报错，但接口退化成可变（并且会误导"这个组件有状态"）。
-
-### 3.4 验证
-
-```bash
-cmake --build build && ctest --test-dir build --output-on-failure
-```
-
-期望：`2/2` 通过。黄金回归里 deadzone 三个用例：
-
-| 用例 | 覆盖 | 实测偏差 vs 容差（2026-09-17） |
-|---|---|---|
-| `deadzone_soft` | 软衰减 + 边界 + 区外 | 4.8e-08 vs 1.58e-06 |
-| `deadzone_hard` | 硬死区（带内归零/带外原样） | 4.8e-08 vs 1.58e-06 |
-| `deadzone_disabled` | `range=0` 直通 | 3.0e-09 vs 1.02e-06 |
-
-另外 `tests/smoke_test.cpp` 的 `test_deadzone()` 有 7 条解析断言（0.18 / 边界 / 同号 / range=0）。
-
-### 3.5 待你拍板的决策点（敲完告诉我结论）
-
-| # | 问题 | 现状 | 选项与取舍 |
-|---|---|---|---|
-| **D1-1** | 库内唯一 `<cmath>` 依赖要不要去掉？ | `std::fabs` | (a) 保留：嵌入式的 `std::fabs` 通常被内联成 `fabsf` 指令，零成本；(b) 换 `error < 0.0f ? -error : error`：与 `pid.cpp` 的自实现风格一致，去掉唯一标准头（注意 `-0.0f` 与 NaN 语义两边一致，已核对） |
-| **D1-2** | `soft_` 运行时分支 vs 编译期两态？ | 运行时 `bool` | (a) 保留：可配置、代码只有一份；(b) 拆成 `SoftDeadzone` / `HardDeadzone` 两个类：零分支但 API 分裂、组合器要写两遍 |
-| **D1-3** | 构造函数默认值与其他组件风格不一致（PID/LPF/Ramp 都要显式传参） | 有默认值 | (a) 保留：参数少，默认=禁用很自然；(b) 去默认值，强制显式（调用点更啰嗦）；(c) 跟 PID 一样走 config 结构（对这个两参数组件是过度设计） |
-| **D1-4** | `range < 0` 的意图在代码里不可见（靠"软分支恒不成立"隐式直通） | 隐式 | (a) 保持（与 spec 的 `range<=0 → 直通` 一致）；(b) 开头加一句 `if (range_ <= 0.0f) return error;` 把意图摆明（多一次比较） |
-| **D1-5** | 无状态组件要不要也提供 `reset()` / `set_state()` 空实现？ | 没有 | (a) 不加（YAGNI：没有任何调用点需要）；(b) 加空实现，让"算法链"可以统一处理所有组件 |
-| **D1-6** | 类名与术语 | `Deadzone` | (a) 保持；(b) `Deadband`（英文语境更常用，"死区/死带"）；(c) `SoftDeadzone`（突出默认模式，但硬模式就在同一个类里，名字会骗人） |
+**下一个候选：模块 4 · 观测出口（M1）** —— `PIDState` / `PIDFlags` / `snapshot()` / `set_gains`。
+它的决策点（出参形态、缓存放哪、饱和标志怎么报）比模块 3 更值得你亲自定 —— 你说接手我就把
+before/after 按前面流程给你；你说「你来」我就直接做。
 
 ## 4. 决策记录（边敲边记 —— 只增不改）
 
 | 日期 | 模块 | 决策 | 影响（spec / 黄金向量 / 下游） |
 |---|---|---|---|
+| 2026-09-17 | 1 | N1(a) 非法输入返回**上一拍输出**（新增 `last_output_`） | `docs/spec/pid.md` 已同步「非法输入行为」；oracle `refctl.py` 同步实现 |
+| 2026-09-17 | 1 | N2(a) 自实现 `is_finite`（不引 `<cmath>`；上界 `3.402823466e+38f`） | 与 deadzone 的 `<cmath>` 依赖差异保留（deadzone 决策 D1-1 待定） |
+| 2026-09-17 | 1 | N3(a) `set_integral` 注入值 **clamp 到 `limit_i_`** | smoke 新增 `test_pid_set_integral` |
+| 2026-09-17 | 1 | N4(a) 用宏 `CTL_NODISCARD`（定义在 `inc/ctl/pid.hpp`） | 实测生效：抓到测试里一处丢弃返回值的调用 |
+| 2026-09-17 | 1 | N5(a) 不并入模块 2 | 模块 2 独立进行 |
+| 2026-09-17 | 1 | 手敲验收：首轮漏 `last_output_` 的 **3 处写回**（构造初值 / `calc` 写回 / `reset` 清零），smoke 3 项红；补齐后全绿 | 教训：新状态字段必须"构造给初值 + 每拍写回 + reset 清零"三处齐 |
+| 2026-09-17 | 2 | 限幅类 `<= 0` = **不限幅**（未采用 sentinel 巨大值）；斜坡"0 = 关闭"在构造期归一化为无上限速率（`Ramp` 自己 0 = 冻结不变）；`set_integral` 同样不限幅 | `docs/spec/pid.md` + `docs/spec/README.md` 全局约定已同步；oracle `clamp()` 与斜坡归一化同步；新增黄金用例 2 个（共 16）；smoke 新增 `test_pid_zero_means_unlimited`；CHANGELOG / roadmap D-1 已更新 |
+| 2026-09-17 | 3 | 用户敲头文件分组（`PIDGains`/`PIDLimits`/`PIDTunings` + `gains_`/`limits_`/`tunings_`，字段名不变）；AI 完成访问点与测试/示例同步 | 行为逐字等价（黄金 16/16）；`docs/spec/pid.md` 配置表、设计稿状态行、CHANGELOG 已同步；不留旧路径别名 |
 | | | | |

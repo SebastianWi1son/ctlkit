@@ -5,7 +5,9 @@ accepted: false
 ---
 # PID 配置与端口设计（设计稿 v0.1）
 
-> **状态**：设计稿，**未实现**。目标里程碑 M0（配置分组）与 M1~M2（端口启用）。
+> **状态**：**配置分组已落地**（Unreleased）。实际命名以源码为准：`PIDGains` / `PIDLimits` / `PIDTunings`
+> + `PIDConfig` 成员 `gains_` / `limits_` / `tunings_`；**字段名与旧版一致、不保留旧路径别名**。
+> 端口结构体 `PIDPorts` **未实现**（计划随第一个真正消费端口的特性引入）。目标里程碑 M1~M2。
 > **性质**：回答「PID 功能不断增加时，配置与接口如何不臃肿」——属于 `docs/design/`（允许过期，
 > 实现后把定案沉淀进 `docs/spec/pid.md`）。
 > **依据**：`docs/roadmap.md` §2/§5（候选 A~F 与调研）、`docs/research/optimization_considerations.md`。

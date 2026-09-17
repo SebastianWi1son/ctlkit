@@ -77,14 +77,15 @@ tol   = 8·dev + 1e-6·scale                    # 8 = 安全系数；1e-6·scale
 | LPF `alpha` 公式改坏 | ✅ 变红（12 行超差） | 2.5e-1 vs 2.0e-6 |
 | Ramp 速率上界 ×2 | ✅ 变红（1 行超差） | 5.0e-1 vs 3.0e-6 |
 
-正常实现的实测偏差（11 个用例，2026-09-17）：`max_dev ≤ 4.8e-7`，对应 tol 余量 2~80 倍。
+正常实现的实测偏差（16 个用例，2026-09-17）：`max_dev ≤ 9.6e-07`（最大在 `pid_limit_unlimited`），对应 tol 余量 2~80 倍。
 
 ## 7. 覆盖范围与局限
 
-- **覆盖**：`PID`（含饱和/积分分离/D 滤波/输出斜坡/dt 守卫路径）、`LPF`（含 Tf=0）、
-  `Ramp`（含 max_rate=0）、`SmoothPlanner`、`Deadzone`（软/硬/range=0 三路径）—— 共 14 个用例。
-- **未覆盖**：NaN/Inf 输入（C1 候选尚未实现，见 `docs/spec/pid.md`「已知缺口」）；
-  `set_state` 注入路径（由 `tests/smoke_test.cpp` 的解析断言覆盖）。
+- **覆盖**：`PID`（含饱和/积分分离/D 滤波/输出斜坡/dt 守卫/NaN-Inf 守卫/`0 = 不限幅`）、`LPF`（含 Tf=0）、
+  `Ramp`（含 max_rate=0）、`SmoothPlanner`、`Deadzone`（软/硬/range=0 三路径）—— 共 16 个黄金用例。
+- **NaN/Inf 为什么不在黄金向量里**：CSV 判定用 `|got − expected| ≤ tol`，NaN 参与比较恒为假，无法在 CSV 里表达；
+  所以它由 `tests/smoke_test.cpp` 的 `test_pid_nan_recovery` 覆盖，oracle 侧在 `validate_oracle.py` 同步验证。
+- **未覆盖**：`set_state` 注入路径（由 `tests/smoke_test.cpp` 的解析断言覆盖）。
 - **精度**：oracle 主源是 float64；float32 仅用于推导容差，不是被测实现的镜像。
 
 ## 8. 可复现性

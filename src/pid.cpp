@@ -3,28 +3,36 @@
 namespace ctl {
 
 PID::PID(const PIDConfig &cfg): cfg_(cfg),      // PID Unified Register Entrance
-        integral_(0.0f), error_prev_(0.0f), measure_prev_(0.0f),
-        d_filter_(cfg.d_filter_Tf_), ramp_out_(cfg.max_rate_out_) {}
+        integral_(0.0f), error_prev_(0.0f), measure_prev_(0.0f), last_output_(0.0f),
+        d_filter_(cfg.tunings_.d_filter_Tf_),
+        // 0 语义统一（roadmap D-1）：PID 层 0 = 关闭输出斜坡；Ramp 自身 0 = 冻结输出。
+        // 这里把“关闭”归一化成无上限速率（与 is_finite 上界同一常量），斜坡恒直通且语义不串层。
+        ramp_out_((cfg.tunings_.max_rate_out_ > 0.0f) ? cfg.tunings_.max_rate_out_ : 3.402823466e+38f) {}
 
 float PID::calc(float cmd, float measure, float dt) {
+    // ----- NaN Guard -----
+    if (!is_finite(cmd) || !is_finite(measure) || !is_finite(dt)) { return last_output_; }
+    // ----- dt Guard -----
     if (dt <= 0.0f || dt > 0.5f) { dt = 0.001f; }
+
     float error = cmd - measure;
     // ----- P-Term -----
-    float p_term = cfg_.kp_ * error;
+    float p_term = cfg_.gains_.kp_ * error;
     // ----- I-Term ------
-    float i_term_temp = integral_ + cfg_.ki_ * dt * 0.5f * (error + error_prev_);
-    i_term_temp = constrainf(i_term_temp, cfg_.limit_i_);                                 // Integral Windup Limit
-    if (cfg_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.thresh_i_sep_) { integral_ = i_term_temp; } // Integral Separation
+    float i_term_temp = integral_ + cfg_.gains_.ki_ * dt * 0.5f * (error + error_prev_);
+    i_term_temp = constrainf(i_term_temp, cfg_.limits_.limit_i_);                                 // Integral Windup Limit
+    if (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_) { integral_ = i_term_temp; } // Integral Separation
     // ----- D-Term -----
     float inv_dt = 1.0f / dt;
-    float d_term_raw = -cfg_.kd_ * inv_dt * (measure - measure_prev_);
+    float d_term_raw = -cfg_.gains_.kd_ * inv_dt * (measure - measure_prev_);
     float d_term = d_filter_.calc(d_term_raw, dt);                                      // d term lpf
     // ----- Update State-----
     error_prev_ = error;
     measure_prev_ = measure;
     // ----- Integrate Output-----
-    float output = constrainf((p_term + d_term + integral_), cfg_.limit_out_); // limit output
-    if (cfg_.max_rate_out_ > 0.0f) { output = ramp_out_.calc(output, dt); }   // ramp output (disable at value 0.0f)
+    float output = constrainf((p_term + d_term + integral_), cfg_.limits_.limit_out_); // limit output（<= 0 = 不限幅）
+    output = ramp_out_.calc(output, dt);   // 斜坡恒开启；关闭时速率已归一化为“无上限”（见构造函数）
+    last_output_ = output;
     return output;
 }
 
@@ -32,14 +40,19 @@ void PID::reset() {
     integral_ = 0.0f;
     error_prev_ = 0.0f;
     measure_prev_ = 0.0f;
+    last_output_ = 0.0f;
     d_filter_.reset();
     ramp_out_.reset();
 }
 
+void PID::set_integral(float x) { integral_ = constrainf(x, cfg_.limits_.limit_i_); }
+
 // ----- Math Tools -----
 float PID::fabs(float val) { return (val > 0.0f) ? val : -val; }       // float abs
 
-float PID::constrainf(float val, float limit) {                        // float constrain
+// float constrain —— 0 语义统一（roadmap D-1）：limit <= 0 表示“不限幅”（直通）
+float PID::constrainf(float val, float limit) {
+    if (limit <= 0.0f) { return val; }
     if (val > limit) { return limit; }
     if (val < -limit) { return -limit; }
     return val;

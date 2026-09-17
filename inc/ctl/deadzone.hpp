@@ -20,4 +20,6 @@ private:
     bool soft_;
 };
 
+
+
 }  // namespace ctl

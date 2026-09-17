@@ -12,6 +12,13 @@ generated: false
 ### Added
 - **`Deadzone` 库化**：`inc/ctl/deadzone.hpp` + `src/deadzone.cpp`（原 `foc::algo::Deadzone`，行为未变）
   + `docs/spec/deadzone.md` 契约 + oracle/黄金向量覆盖（软/硬/range=0 三路径）
+- **PID M0（部分）**：NaN/Inf 守卫（返回上一拍输出、零污染状态）、`set_integral`（clamp 注入）、
+  `CTL_NODISCARD`（C++11 兜底宏）—— 有限输入行为不变，黄金回归 14/14 仍绿
+- **PID M0：`0` 语义统一（roadmap D-1）**：限幅类 `<= 0` = 不限幅（原“0 = 钳死到 0”）；
+  斜坡 “0 = 关闭” 在构造期归一化为无上限速率（不动 `Ramp` 的 `0 = 冻结`）。
+  ⚠ 行为变更点：`limit = 0` 的既有配置；新增控覆盖 `pid_limit_unlimited` / `pid_i_unlimited_out_limited`（黄金向量 16 例）
+- **PID 配置分组**：`PIDConfig` 扁平 8 字段 → `PIDGains` / `PIDLimits` / `PIDTunings`
+  （`PIDConfig` 成员 `gains_` / `limits_` / `tunings_`；字段名不变、无旧路径别名，行为逐字等价）
 - **唯一可信 oracle**：`oracle/refctl.py`（按 `docs/spec/` 独立重写）+
   `oracle/validate_oracle.py`（外借尺子：`scipy.signal.lfilter` / `fractions.Fraction` 精确有理数 / 解析式）
   + `oracle/gen_golden.py`（生成器）；说明见 `oracle/README.md`

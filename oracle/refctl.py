@@ -19,10 +19,18 @@ import numpy as np
 
 F64 = np.float64
 F32 = np.float32
+FLOAT_MAX = 3.402823466e+38      # 与 C++ 侧 is_finite 的上界一致
+
+
+def is_finite(x):
+    """非有限判定：NaN 自不相等；上下界取 float 最大值（与 C++ is_finite 同语义）。"""
+    return (x == x) and (x <= FLOAT_MAX) and (x >= -FLOAT_MAX)
 
 
 def clamp(val, limit):
-    """对称限幅，逐字对应 spec 的 constrainf 语义（含 limit=0 时钳死到 0）。"""
+    """对称限幅；**limit <= 0 = 不限幅（直通）**（0 语义统一，roadmap D-1）。"""
+    if limit <= 0:
+        return val
     if val > limit:
         return limit
     if val < -limit:
@@ -98,14 +106,16 @@ class PID:
         self.integral = d(0.0)
         self.error_prev = d(0.0)
         self.measure_prev = d(0.0)
+        self.last_output = d(0.0)
         self.d_filter = LPF(d_filter_Tf, dtype)
-        self.ramp_out = Ramp(max_rate_out, dtype)
+        self.ramp_out = Ramp(d(max_rate_out) if d(max_rate_out) > d(0.0) else d(FLOAT_MAX), dtype)   # 0 = 关闭 → 无上限速率
 
     def reset(self):
         d = self.dtype
         self.integral = d(0.0)
         self.error_prev = d(0.0)
         self.measure_prev = d(0.0)
+        self.last_output = d(0.0)
         self.d_filter.reset()
         self.ramp_out.reset()
 
@@ -114,6 +124,10 @@ class PID:
         cmd = d(cmd)
         measure = d(measure)
         dt = d(dt)
+
+        # ⓪ NaN/Inf 守卫（M0 · C1）：不更新任何状态，返回上一拍输出
+        if not (is_finite(cmd) and is_finite(measure) and is_finite(dt)):
+            return self.last_output
 
         # ① dt 守卫
         if dt <= d(0.0) or dt > d(0.5):
@@ -140,8 +154,8 @@ class PID:
 
         # ⑥ 合成输出 → 对称限幅 → 输出斜坡
         out = d(clamp(d(d(p_term + d_term) + self.integral), self.limit_out))
-        if self.max_rate_out > d(0.0):
-            out = self.ramp_out.calc(out, dt)
+        out = self.ramp_out.calc(out, dt)   # 斜坡恒开启（关闭时速率 = 无上限，直通）
+        self.last_output = out
         return out
 
 

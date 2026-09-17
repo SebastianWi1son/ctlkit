@@ -3,6 +3,14 @@
 #include "ctl/lpf.hpp"
 #include "ctl/ramp.hpp"
 
+#if defined(__cplusplus) && __cplusplus >= 201703L
+#  define CTL_NODISCARD [[nodiscard]]
+#elif defined(__GNUC__) || defined(__clang__)
+#  define CTL_NODISCARD __attribute__((warn_unused_result))
+#else
+#  define CTL_NODISCARD
+#endif
+
 // ctlkit —— 嵌入式实时控制原语（上游库）
 // 来源：cyclotron/foc 的 foc::algo::PID（其自身复用搬运自 lunokhod/actuator/wheel）
 // 行为契约：docs/spec/pid.md ｜ 优化路线：docs/roadmap.md
@@ -10,35 +18,52 @@
 
 namespace ctl {
 
-struct PIDConfig {
+// --- son struct ---
+struct PIDGains {
     float kp_ = 0.0f;
     float ki_ = 0.0f;
     float kd_ = 0.0f;
+};
 
-    float limit_out_ = 0.0f;
-    // --- i_term method property ---
-    float limit_i_ = 0.0f;
+struct PIDLimits {
+    float limit_out_ = 0.0f;   // 输出对称限幅；<= 0 = 不限幅（0 语义统一，roadmap D-1）
+    float limit_i_ = 0.0f;     // 积分项预限幅；<= 0 = 不限幅
+};
+
+struct PIDTunings {
     float thresh_i_sep_ = 0.0f;
-    // --- dsp tools property ---
-    float max_rate_out_ = 0.0f;
+    float max_rate_out_ = 0.0f; // 输出斜坡速率；0 = 关闭（构造函数内归一化为“无上限速率”传给 Ramp：PID 层 0=关闭，Ramp 层 0=冻结，语义不串层）
     float d_filter_Tf_ = 0.0f;
+};
+
+// --- father struct ---
+struct PIDConfig {
+    PIDGains gains_;
+    PIDLimits limits_;
+    PIDTunings tunings_;
 };
 
 class PID {
 public:
     explicit PID(const PIDConfig &cfg);     // 显式确保PIDConfig作为参数参与构造
-    float calc(float cmd, float measure, float dt);
+    CTL_NODISCARD float calc(float cmd, float measure, float dt);
     void reset();
+
+    /// @brief bumpless transfer: integral start from set point
+    /// @param x
+    void set_integral(float x);
 private:
     // ----- Math Tools -----
     static float fabs(float val);
     static float constrainf(float val, float limit);
+    static bool is_finite(float x) { return (x == x) && (x <= 3.402823466e+38f) && (x >= -3.402823466e+38f); }
 
     // --- property ---
     PIDConfig cfg_;
     float integral_;
     float error_prev_;
     float measure_prev_;
+    float last_output_;
     // --- dsp tools ---
     LPF d_filter_;
     Ramp ramp_out_;
