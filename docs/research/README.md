@@ -20,13 +20,11 @@ generated: false
 docs/research/
 ├── README.md                      # 本文件（归档索引）
 ├── comparison_report.md           # 对比报告（架构 / 公式 / 行为逐项对照 + 结论）
-├── optimization_considerations.md # 优化考量（可落地的改进点 + 伪码 + 风险 + 优先级）
-└── reference/                     # 第三方/历史源码只读快照（不参与构建）
-    ├── github_Liu-Curiousity/     # GitHub 源码原样快照（PID.h / CMakeLists.txt + 溯源说明）
-    └── cyclotron_foc/             # cyclotron 源码原样快照（pid / lpf / ramp 的 hpp+cpp + 溯源说明）
+└── optimization_considerations.md # 优化考量（可落地的改进点 + 伪码 + 风险 + 优先级）
 ```
 
-> 活代码（库化后）在仓库的 `../../inc` + `src/`；本目录两份快照仅供血缘考古， **不以它们为准**。
+> 活代码在 `../../inc` + `src/`。源码快照（第三方 `Liu-Curiousity/pid` 与历史 `cyclotron_foc` 副本）**不随仓库分发**：
+> 本地保留在 `reference/`（已 gitignore，含各自的溯源 README），仅供血缘考古， **不以它们为准**。
 
 ## 快速结论
 
@@ -54,5 +52,5 @@ MathWorks 等）的分层目标架构（原语 → 核心 → 增强 → 系统�
 ## 注意事项
 
 - GitHub 仓库**未附带 LICENSE 文件**（头文件标注 `(c) 2025 QDrive`），此处仅作内部学习/对比归档，不直接引入商用代码。
-- 本地源码为 cyclotron 内原样快照（归档）；自 v0.0.1 起 **上游库 ctlkit 为准**（活代码 `../../inc` + `src/`，
+- 本地源码为 cyclotron 内原样快照（本地保留、不入库）；自 v0.0.1 起 **上游库 ctlkit 为准**（活代码 `../../inc` + `src/`，
   行为契约 `docs/spec/`），下游（cyclotron / lunokhod）改为从本库同步，不再各自演化。

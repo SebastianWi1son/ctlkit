@@ -102,9 +102,9 @@ ctest --test-dir build --output-on-failure
 ## 版本与许可
 
 - 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.0`（API 冻结版）**。
-- 许可：**MIT**（见 [LICENSE](LICENSE)）。`docs/research/reference/` 下第三方快照
-  **不在本许可范围内**（`Liu-Curiousity/pid` 无 LICENSE），仅供内部研究对比，
-  不参与构建、不引入商用代码。
+- 许可：**MIT**（见 [LICENSE](LICENSE)）。
+- 源码归档快照（第三方 `Liu-Curiousity/pid` 与历史 `cyclotron_foc` 副本）**不随仓库分发**：
+  本地保留在 `docs/research/reference/`（已 gitignore）；第三方部分无 LICENSE，不可再分发。
 
 ## 兼容政策（v0.1.0 起）
 

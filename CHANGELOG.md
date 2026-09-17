@@ -10,6 +10,10 @@ v0.0.x 是库化与加固阶段（M0 之前，无兼容承诺）。路线见 `do
 
 ## [0.1.0] - 2026-09-17
 
+### Changed
+- **归档快照移出仓库**：第三方（`Liu-Curiousity/pid`）与历史（`cyclotron_foc`）源码快照
+  不再随仓库分发，本地保留在 `docs/research/reference/`（已 gitignore），历史一并清理
+
 ### 冻结（Freeze）
 - **API 冻结**：`calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` 签名、
   `PIDConfig` / `PIDPorts` / `PIDState` / `PIDStatus` 的既有字段名与语义、五个组件的公开接口。

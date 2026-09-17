@@ -130,7 +130,7 @@ ctlkit/
 │   ├── spec/                  # 现状契约（fact）
 │   ├── design/                # 设计稿（work；验收后移出）
 │   ├── typing_WORK.md         # 手敲代码缓冲区（一次一个模块；完成后移出 docs/）
-│   ├── research/              # 调研归档（fact；reference/ 是只读快照，门禁自动跳过）
+│   ├── research/              # 调研归档（fact；源码快照 reference/ 本地保留、不入库）
 │   └── roadmap.md             # 路线图（fact）
 ├── AGENTS.md                  # AI 工作规则（每次对话自动加载，≤ 一屏）
 └── CHANGELOG.md               # 版本历史（log 类，根目录行业惯例见 baseline 豁免）

@@ -81,7 +81,7 @@ D 施工单 用完即弃                  → 验收后移出 docs/
 | `inc/` · `src/`（源码） | **只有人**（AI 默认只读；改要明确指示） |
 | `tests/` · `oracle/` | AI 写 |
 | `docs/` · `scripts/` · `.github/` · `CMakeLists.txt` · `README.md` | AI 可写 |
-| `docs/research/reference/`（第三方归档快照） | 谁也不许改（只读） |
+| `docs/research/reference/`（本地保留的归档快照，不入库） | 谁也不许改（只读） |
 
 ## 6. 提交
 
