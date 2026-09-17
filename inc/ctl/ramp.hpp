@@ -4,7 +4,8 @@
 // 来源：cyclotron/foc 的 foc::algo::Ramp（复用搬运自 lunokhod/actuator/wheel）
 // 行为契约：docs/spec/ramp.md
 // 斜率限制器：每帧 clamp 到 [prev ± max_rate·dt]
-// ⚠ max_rate=0 → step=0 → 输出冻结在 prev_（不是直通）；0 语义待定案，见 docs/roadmap.md §6 D-1
+// ⚠ max_rate=0 → step=0 → 输出冻结在 prev_（不是直通）。0 语义已定案（docs/roadmap.md §6 D-1）：
+//    Ramp 层 0 = 冻结（本组件语义）；PID 层 “0 = 关闭斜坡” 在构造期归一化为无上限速率，两层不串
 
 namespace ctl {
 

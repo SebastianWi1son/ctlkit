@@ -6,7 +6,7 @@ generated: false
 
 > 源码：`inc/ctl/deadzone.hpp` + `src/deadzone.cpp`
 > 血缘：cyclotron `foc::algo::Deadzone` → ctlkit `ctl::Deadzone`（行为未变）
-> 精确定义与 cyclotron 侧的 soft_deadzone 一致（FOC_MATH_SPEC §7）
+> 血缘：与 cyclotron 侧 `soft_deadzone` 一致（`FOC_MATH_SPEC.md` §7，已退役）；精确定义**以本文为准**
 
 ## 接口
 
