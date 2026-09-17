@@ -1,8 +1,8 @@
 # PID 优化考量（未来优化候选清单）
 
-> 针对本地 `foc::algo::PID` 的优化候选，按"借鉴 GitHub 库 → 补全工业级能力 → 健壮性 → 诊断性"组织。
+> 针对本库 `ctl::PID`（库化前 `foc::algo::PID`）的优化候选，按"借鉴 GitHub 库 → 补全工业级能力 → 健壮性 → 诊断性"组织。
 > 每条含：动机 / 参考来源 / 改动建议（签名或伪码）/ 风险与注意 / 优先级（P0=建议近期做, P1=有场景再做, P2=可选）。
-> 落地时同步更新 `cyclotron/foc/docs/FOC_MATH_SPEC.md`，保持"以源码为准"的单一事实源。
+> 落地时同步更新本库 `docs/spec/pid.md`（并参照 `docs/design/pid_config_and_ports.md`），保持"源码 + spec = 唯一事实源"。
 
 ---
 
