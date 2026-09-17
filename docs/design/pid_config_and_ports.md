@@ -7,6 +7,7 @@ accepted: false
 
 > **状态**：**配置分组已落地**（Unreleased）。实际命名以源码为准：`PIDGains` / `PIDLimits` / `PIDTunings`
 > + `PIDConfig` 成员 `gains_` / `limits_` / `tunings_`；**字段名与旧版一致、不保留旧路径别名**。
+> **支撑类型已拆到 `inc/ctl/pid_types.hpp`**（v0.1.0 冻结面之一；`pid.hpp` 只留类）。
 > **端口结构体已落地（模块 5 / A1）**：`PIDPorts` 当前只有 `meas_dot_`（外部微分注入），
 > `calc(..., const PIDPorts *ports = nullptr)` **签名自此冻结** —— 后续前馈/条件积分只往 `PIDPorts` 加字段（0 = 缺省 = 旧行为）。
 > **性质**：回答「PID 功能不断增加时，配置与接口如何不臃肿」——属于 `docs/design/`（允许过期，

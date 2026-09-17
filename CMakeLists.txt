@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ctlkit VERSION 0.0.1 LANGUAGES CXX)
+project(ctlkit VERSION 0.1.0 LANGUAGES CXX)
 
 # ctlkit —— 嵌入式实时控制原语（上游库）
 # 本 CMake 面向主机端：构建静态库 + 跑单测/示例。

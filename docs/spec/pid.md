@@ -4,7 +4,7 @@ generated: false
 ---
 # PID — 行为契约
 
-> 源码：`inc/ctl/pid.hpp` + `src/pid.cpp`
+> 源码：`inc/ctl/pid.hpp`（类）+ `inc/ctl/pid_types.hpp`（配置/端口/观测类型）+ `src/pid.cpp`
 > 血缘：lunokhod `control/wheel` → cyclotron `foc::algo::PID` → ctlkit `ctl::PID`（库化时行为未变，M0 起按本文件演进）
 > 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.4
 

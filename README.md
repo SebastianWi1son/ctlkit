@@ -26,7 +26,7 @@ generated: false
 
 | 组件 | 头文件 | 说明 | 行为契约 |
 |---|---|---|---|
-| `PID` | `<ctl/pid.hpp>` | 微分先行 + 梯形积分 + 积分分离 + D 项 LPF + 输出斜坡 + dt 守卫 | [docs/spec/pid.md](docs/spec/pid.md) |
+| `PID` | `<ctl/pid.hpp>`（类型：`<ctl/pid_types.hpp>`） | 微分先行 + 梯形积分 + 积分分离 + D 项 LPF + 输出斜坡 + dt 守卫；观测出口 + 每拍端口 | [docs/spec/pid.md](docs/spec/pid.md) |
 | `LPF` | `<ctl/lpf.hpp>` | 一阶低通 `α = dt/(Tf+dt)`；Tf=0 直通 | [docs/spec/lpf.md](docs/spec/lpf.md) |
 | `Ramp` | `<ctl/ramp.hpp>` | 斜率限幅（每帧 clamp 到 `prev ± max_rate·dt`） | [docs/spec/ramp.md](docs/spec/ramp.md) |
 | `SmoothPlanner` | `<ctl/smooth_planner.hpp>` | 二阶轨迹规划 = Ramp + 两级 LPF | [docs/spec/smooth_planner.md](docs/spec/smooth_planner.md) |
@@ -101,7 +101,19 @@ ctest --test-dir build --output-on-failure
 
 ## 版本与许可
 
-- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 `v0.0.1`（库化骨架）。
-- 许可：**待定**（自有代码由作者决定）。`docs/research/reference/` 下第三方快照
-  **无 LICENSE**（`Liu-Curiousity/pid` 头文件标注 `(c) 2025 QDrive`），仅供内部研究对比，
+- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.0`（API 冻结版）**。
+- 许可：**MIT**（见 [LICENSE](LICENSE)）。`docs/research/reference/` 下第三方快照
+  **不在本许可范围内**（`Liu-Curiousity/pid` 无 LICENSE），仅供内部研究对比，
   不参与构建、不引入商用代码。
+
+## 兼容政策（v0.1.0 起）
+
+```
+patch（0.1.x）：只修 bug，行为修复也走 patch；不新增/不改 API
+minor（0.x）  ：只增不改 —— 加字段（默认值 = 旧行为）、加组件、加重载、加端口字段
+major（1.0 起）：才允许破坏 —— 改字段名/语义、改签名、删接口
+```
+
+- 已冻结面：`calc` 签名、`PIDConfig` / `PIDPorts` / `PIDState` / `PIDStatus` 的既有字段、
+  五个组件（PID · LPF · Ramp · SmoothPlanner · Deadzone）的公开接口、`inc/ctl/` 的文件布局。
+- 行为兼容由 `tests/golden/`（19 例黄金向量）看守：任何“默认关闭 = 旧行为”的改动必须证明黄金全绿。

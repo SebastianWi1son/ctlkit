@@ -4,10 +4,18 @@ generated: false
 ---
 # Changelog
 
-遵循语义化版本。v0.0.x 为库化与加固阶段（M0 之前），尚未承诺跨版本行为兼容；
-行为兼容承诺自 M0（黄金向量回归建立）起生效。路线见 `docs/roadmap.md`。
+遵循语义化版本。**v0.1.0 起 API 冻结**（兼容政策见 README「兼容政策」）：
+既有字段名 / 语义 / `calc` 签名只增不改，破坏性变更进 major。
+v0.0.x 是库化与加固阶段（M0 之前，无兼容承诺）。路线见 `docs/roadmap.md`。
 
-## [Unreleased]
+## [0.1.0] - 2026-09-17
+
+### 冻结（Freeze）
+- **API 冻结**：`calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` 签名、
+  `PIDConfig` / `PIDPorts` / `PIDState` / `PIDStatus` 的既有字段名与语义、五个组件的公开接口。
+  新特性只允许“加字段 / 加组件 / 加重载”，破坏进 major。
+- 支撑类型拆到 `inc/ctl/pid_types.hpp`（`pid.hpp` 只留类），此文件布局同为冻结面。
+
 
 ### Added
 - **`Deadzone` 库化**：`inc/ctl/deadzone.hpp` + `src/deadzone.cpp`（原 `foc::algo::Deadzone`，行为未变）

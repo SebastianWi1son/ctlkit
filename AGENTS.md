@@ -17,6 +17,9 @@ generated: false
   不许悄悄回退成默认值 —— 静默错比响亮错危险得多。
 - **改代码必须同步改描述它的文档**，且要在**同一次改动**里完成：
   改行为 → 改 `docs/spec/`；改结构 → 改 `docs/README.md` §6 目录地图。
+- **已冻结的 API 只增不改**（v0.1.0 起，见 README「兼容政策」）：`calc` 签名、
+  `PIDConfig`/`PIDPorts`/`PIDState`/`PIDStatus` 既有字段、五个组件公开接口、`inc/ctl/` 布局。
+  破坏性改动要用户明确点头并进 major。
 
 ## 2. oracle 规则（写测试时必须守）
 
