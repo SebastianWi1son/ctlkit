@@ -1,0 +1,7 @@
+build/
+cmake-build-*/
+.idea/
+*.o
+*.a
+*.d
+compile_commands.json
