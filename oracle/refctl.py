@@ -112,6 +112,7 @@ class PID:
         # 观测标志（M1）：out/i/dt 为本拍瞬态；input_fault 为粘滞
         self.out_saturated = False
         self.i_saturated = False
+        self.i_frozen = False
         self.dt_rejected = False
         self.input_fault = False
 
@@ -125,6 +126,7 @@ class PID:
         self.ramp_out.reset()
         self.out_saturated = False
         self.i_saturated = False
+        self.i_frozen = False
         self.dt_rejected = False
         self.input_fault = False
 
@@ -161,7 +163,8 @@ class PID:
         i_commit = bool(self.thresh_i_sep <= d(0.0) or d(abs(error)) <= self.thresh_i_sep)
         if i_commit:
             self.integral = i_limited
-        # 只报“被采纳的积分值真被削过”（TODO T3）
+        # 两名 I 出口（与 C++ 同步）：冻结 = 本拍丢弃候选；饱和 = 被采纳的值真被削过
+        self.i_frozen = not i_commit
         self.i_saturated = i_commit and bool(i_limited != i_temp)
 
         # ④ D 项：微分先行（外部微分优先，否则环内差分）+ LPF

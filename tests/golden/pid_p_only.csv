@@ -2,7 +2,7 @@
 # case: pid_p_only
 # component: pid
 # oracle: oracle/refctl.py
-# oracle-sha256: 143e333176f1
+# oracle-sha256: adc63ee935ba
 # params: kp=4.0 ki=0.0 kd=0.0 limit_out=100.0 limit_i=0.0
 # tol: 4.7629394538355426e-06
 # dev: 9.536743172944284e-08

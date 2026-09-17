@@ -42,7 +42,7 @@ generated: false
   ① 收敛阶 Tustin ÷4.00/3.99 vs 矩形参考 ÷2.01（容差 ±12.5%）② 二阶闭环 T(s)=100/(s+100) 解析无超调 / t_r=21.97 ms
   （实测 21.90 ms，带宽 ±5%）③ 抗饱和：反向误差后 ≤5 拍离开饱和（实测 3 拍；无抗饱和需 ~1000 拍）
 - **T2 / T2b 已补**：dt 守卫加下界 `dt < 1e-9`（`src/pid.cpp`）+ 新增 `status().dt_rejected_`（本拍是否被守卫兜底）
-- **T3 已补**：`i_saturated_` 改为「只报被采纳的钳位」（分离冻结不算），与 D-3 一致；oracle 同批镜像
+- **T3 已补**：`i_saturated_` 改为「只报被采纳的钳位」（分离冻结不算）；并按用户决定**补上分离出口** `status().i_frozen_`（方案 B："顶住了吗"与"这拍积分了吗"各一个位，互斥）——spec / oracle / smoke 同步
 - **T4 已补**：CI build-test 改矩阵 `{g++, clang++} × {c++11, c++17}` + `-Werror`
 - **T5 已补**：CI 新增 `golden-sync` job（validate_oracle → gen_golden → `git diff --exit-code tests/golden/`）；
   顺手改掉 `scripts/ci_local.py` 里提到"不存在的 golden job"的 stale 注释

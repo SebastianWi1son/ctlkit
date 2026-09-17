@@ -34,7 +34,8 @@ float PID::calc(float cmd, float measure, float dt, const PIDPorts *ports) {
     // 积分分离：大误差时冻结（候选值丢弃）
     const bool i_commit = (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_);
     if (i_commit) { integral_ = i_term_limited; }
-    // 只报“被采纳的积分值真被削过”（分离冻结时候选值虽被削但未生效 —— TODO T3）
+    // 两个 I 出口，各回答一个问题（诚实口径）：冻结 = 本拍丢弃候选（设计意图）；饱和 = 被采纳的值真被削过
+    status_.i_frozen_ = !i_commit;                                        // 积分分离生效（本拍未积分）
     status_.i_saturated_ = i_commit && (i_term_limited != i_term_temp);   // i_saturated flag
     // ----- D-Term -----
     float inv_dt = 1.0f / dt;
