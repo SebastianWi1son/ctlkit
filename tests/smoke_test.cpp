@@ -263,6 +263,142 @@ static void test_pid_external_derivative() {
     CHECK(near(pid.calc(0.0f, 0.4f, 1e-3f, &empty), -10.0f, 1e-4f));
 }
 
+// ── T1 公式级锚点：证明"对"，不只证明"没变"（期望值均为外部解析真值；容差按实测×安全系数推导）──
+
+static void test_anchor_integration_order() {
+    // 对 ∫₀¹ t² dt = 1/3：Tustin（本库 I 项）误差应随 dt 减半 ÷4（O(dt²)）；
+    // 同数据用矩形（前向欧拉）参考应 ÷2（O(dt)）。期望比值＝解析值（4 / 2），非本库产出。
+    // 实测 ratio = 4.00 / 3.99（Tustin）、2.01（矩形）→ 区间取 ±12.5%。
+    const double dts[3] = {4e-2, 2e-2, 1e-2};
+    double prev_t = 0.0, prev_r = 0.0;
+    for (int i = 0; i < 3; ++i) {
+        const double dt = dts[i];
+        ctl::PIDConfig cfg;
+        cfg.gains_.ki_ = 1.0f;
+        cfg.limits_.limit_out_ = 1e9f;
+        cfg.limits_.limit_i_ = 0.0f;                 // 0 = 不限幅
+        ctl::PID pid(cfg);
+        double t = 0.0, rect = 0.0;
+        const long n = static_cast<long>(std::lround(1.0 / dt));
+        for (long k = 0; k < n; ++k) {
+            const double e = (t + dt) * (t + dt);
+            const float u = pid.calc(static_cast<float>(e), 0.0f, static_cast<float>(dt));
+            CHECK(u == u);                                  // 过程中输出保持有限
+            rect += e * dt;
+            t += dt;
+        }
+        const double err_t = std::fabs(static_cast<double>(pid.get_state().integral_) - 1.0 / 3.0);
+        const double err_r = std::fabs(rect - 1.0 / 3.0);
+        if (i > 0) {
+            CHECK(prev_t / err_t > 3.5 && prev_t / err_t < 4.5);    // Tustin：阶数正确
+            CHECK(prev_r / err_r > 1.75 && prev_r / err_r < 2.25);  // 矩形：对照家族
+        }
+        prev_t = err_t;
+        prev_r = err_r;
+    }
+}
+
+static void test_anchor_closed_loop() {
+    // 一阶对象（τ=0.01）+ PI（kp=1，ki=(1+kp)²/(4τ)=100）→
+    // T(s) = (s+kp/τ·…)/… 化简为 **100/(s+100)**（控制器零点约掉一个极点）：
+    //   解析：一阶、无超调、t_r(10-90%) = [ln(10)-ln(1/0.9)]/100 = 21.97 ms。
+    // 实测：超调 -0.0001%、t_r 21.90 ms（偏差 0.3%）→ 阈值：超调 < 1%、t_r 在解析值 ±5%。
+    const double tau = 0.01, dt = 1e-4;
+    ctl::PIDConfig cfg;
+    cfg.gains_.kp_ = 1.0f;
+    cfg.gains_.ki_ = 100.0f;
+    cfg.limits_.limit_out_ = 0.0f;
+    cfg.limits_.limit_i_ = 0.0f;
+    ctl::PID pid(cfg);
+    double y = 0.0, t = 0.0, ymax = 0.0, t10 = -1.0, t90 = -1.0;
+    for (int k = 0; k < 2000; ++k) {
+        const float u = pid.calc(1.0f, static_cast<float>(y), static_cast<float>(dt));
+        y += (u - y) * (dt / tau);                   // 显式欧拉对象（dt/τ = 1%）
+        t += dt;
+        if (y > ymax) ymax = y;
+        if (t10 < 0.0 && y >= 0.1) t10 = t;
+        if (t90 < 0.0 && y >= 0.9) t90 = t;
+    }
+    const double tr_ms = (t90 - t10) * 1e3;
+    CHECK((ymax - 1.0) * 100.0 < 1.0);                               // 解析无超调
+    CHECK(tr_ms > 21.97 * 0.95 && tr_ms < 21.97 * 1.05);             // 解析 21.97 ms
+    CHECK(std::fabs(1.0 - y) < 1e-4);                                // 稳态（实测 1.2e-06）
+}
+
+static void test_anchor_antiwindup() {
+    // 抗饱和：饱和期间积分被钳在 ±limit_i（不是无限累积）；误差一反向，输出应立即离开饱和。
+    // 实测第 3 拍离开；无抗饱和（积分自由累积到 10·100·0.01 = 10）需 ~1000 拍 → 阈值 5 拍仍有 200× 判别力。
+    ctl::PIDConfig cfg;
+    cfg.gains_.ki_ = 100.0f;
+    cfg.limits_.limit_i_ = 1.0f;
+    cfg.limits_.limit_out_ = 1.0f;
+    ctl::PID pid(cfg);
+    float u_sat = 0.0f;
+    for (int k = 0; k < 1000; ++k) { u_sat = pid.calc(10.0f, 0.0f, 1e-4f); }
+    CHECK(near(u_sat, 1.0f));                                        // 饱和在 limit_out_
+    CHECK(near(pid.get_state().integral_, 1.0f));                    // 被钳在 limit_i_，无 windup
+    int leave = -1;
+    for (int k = 1; k <= 100 && leave < 0; ++k) {
+        if (pid.calc(-0.1f, 0.0f, 1e-4f) < 0.999f) { leave = k; }
+    }
+    CHECK(leave > 0 && leave <= 5);
+}
+
+static void test_dt_guard_lower_bound() {
+    // T2：dt < 1e-9 会让 1/dt 溢出、D 状态被静默污染（修前：本拍 d_term=-inf → 下一拍永久 NaN）
+    ctl::PIDConfig cfg;
+    cfg.gains_.kd_ = 1.0f;
+    cfg.limits_.limit_out_ = 100.0f;
+    cfg.limits_.limit_i_ = 100.0f;
+    ctl::PID pid(cfg);
+    CHECK(near(pid.calc(0.0f, 0.0f, 1e-3f), 0.0f));
+    CHECK(!pid.status().dt_rejected_);
+    CHECK(near(pid.calc(0.0f, 1.0f, 1e-45f), -100.0f, 1e-3f));          // 极小 dt → 按 1ms 算
+    CHECK(pid.status().dt_rejected_);                                    // 且可观测
+    const float v = pid.calc(0.0f, 2.0f, 1e-3f);
+    CHECK(v == v);                                                       // 不再是 NaN（修 T2 前恒 NaN）
+    CHECK(near(v, -100.0f, 1e-3f));
+    CHECK(!pid.status().dt_rejected_);
+}
+
+static void test_i_saturated_semantics() {
+    // T3：i_saturated_ = 「被采纳的积分值真被削过」；分离冻结时候选值虽被削但不生效 → 不算饱和
+    ctl::PIDConfig cfg;
+    cfg.gains_.ki_ = 2000.0f;
+    cfg.limits_.limit_i_ = 0.5f;
+    cfg.limits_.limit_out_ = 1000.0f;
+    cfg.tunings_.thresh_i_sep_ = 0.1f;                                   // error=1 ≫ 0.1 → 分离生效
+    ctl::PID pid(cfg);
+    CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 0.0f));                 // kp=0、积分被冻结 → 输出 0
+    CHECK(!pid.status().i_saturated_);
+    CHECK(near(pid.get_state().integral_, 0.0f));
+
+    ctl::PIDConfig cfg2;
+    cfg2.gains_.ki_ = 2000.0f;
+    cfg2.limits_.limit_i_ = 0.5f;
+    cfg2.limits_.limit_out_ = 1000.0f;                                   // thresh = 0 → 不分离
+    ctl::PID pid2(cfg2);
+    CHECK(near(pid2.calc(1.0f, 0.0f, 1e-3f), 0.5f));                // 输出 = 被采纳的积分（已削到 0.5）
+    CHECK(pid2.status().i_saturated_);
+    CHECK(near(pid2.get_state().integral_, 0.5f));
+}
+
+static void test_uncovered_paths() {
+    // T8：把"调用方保证 dt>0"以外的边界现状钉住（文档口径见各 spec）
+    ctl::LPF lpf0(0.01f);
+    CHECK(near(lpf0.calc(1.0f, 0.0f), 0.0f));                        // dt=0 → α=0 → 冻结在 prev_
+    ctl::LPF lpf_nan(0.01f);
+    const float ln = lpf_nan.calc(std::nanf(""), 1e-3f);
+    CHECK(ln != ln);                                                 // NaN 透传（LPF 无守卫）
+    ctl::Ramp ramp_nan(10.0f);
+    CHECK(near(ramp_nan.calc(5.0f, std::nanf("")), 5.0f));           // NaN dt → 比较全假 → 原样透传
+    ctl::Ramp ramp0(10.0f);
+    CHECK(near(ramp0.calc(5.0f, 0.0f), 0.0f));                       // dt=0 → step=0 → 冻结
+    ctl::Deadzone dz(0.5f, true);
+    const float dn = dz.calc(std::nanf(""));
+    CHECK(dn != dn);                                                 // NaN 透传（Deadzone 无守卫）
+}
+
 int main() {
     test_pid_p_term();
     test_pid_trapezoid_integral();
@@ -273,6 +409,12 @@ int main() {
     test_pid_zero_means_unlimited();
     test_pid_observation();
     test_pid_external_derivative();
+    test_anchor_integration_order();
+    test_anchor_closed_loop();
+    test_anchor_antiwindup();
+    test_dt_guard_lower_bound();
+    test_i_saturated_semantics();
+    test_uncovered_paths();
     test_lpf();
     test_ramp();
     test_smooth_planner();

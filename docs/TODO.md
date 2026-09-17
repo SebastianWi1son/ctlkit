@@ -11,6 +11,8 @@ generated: false
 
 ## 待办
 
+> 2026-09-17：以下 T1~T9 + T2b **全部已补**（见文末「已修」批次的第二批）。本表保留原始证据，便于回查。
+
 | # | 级别 | 问题 | 证据（可复现） | 影响当前使用？ | 建议修法 |
 |---|---|---|---|---|---|
 | T1 | P1 | **黄金向量证"没变"、不证"对"**：链路同源（源码 → 人工抄 spec → oracle → 黄金），公式层面的错误会一路通过 | 逻辑论证；本次反证实测：Tustin 对 ∫t² 的误差随 dt 减半 ÷4（ratio **4.00 / 3.99**），矩形参考 ÷2（**2.01**）→ 目前公式阶数正确 | 否（公式来自硬件验证过的血缘） | 加**公式级锚点**：① 收敛阶（Tustin ÷4 vs 矩形 ÷2，探针已就绪）② 闭环指标上界（超调 / 上升时间）③ 跨离散化家族对照（`scipy.signal.lfilter` 只做 AR/MA 校验，不构成公式判据） |
@@ -33,6 +35,22 @@ generated: false
 - **同一可变量多处漂移**（README「4 个组件」、oracle/README「16 个用例」、roadmap「11 个 / 18 例」）→
   散文里的**可数数字一律删掉**，只留 `tests/golden/` 目录作为唯一事实源（脚本派生记 T5/T7 之外，暂靠约定）
 - **`pid_types.hpp` 注释与 `set_gains` 矛盾**（"构造后不可变"）→ 注释改为"只有 `gains_` 可在线改"
+
+### 第二批（2026-09-17，「全部你来补」；代码改动的 before/after 见对应提交说明）
+
+- **T1 已补**：`tests/smoke_test.cpp` 加三个**公式级锚点**（期望值全部是外部解析真值，非本库产出）：
+  ① 收敛阶 Tustin ÷4.00/3.99 vs 矩形参考 ÷2.01（容差 ±12.5%）② 二阶闭环 T(s)=100/(s+100) 解析无超调 / t_r=21.97 ms
+  （实测 21.90 ms，带宽 ±5%）③ 抗饱和：反向误差后 ≤5 拍离开饱和（实测 3 拍；无抗饱和需 ~1000 拍）
+- **T2 / T2b 已补**：dt 守卫加下界 `dt < 1e-9`（`src/pid.cpp`）+ 新增 `status().dt_rejected_`（本拍是否被守卫兜底）
+- **T3 已补**：`i_saturated_` 改为「只报被采纳的钳位」（分离冻结不算），与 D-3 一致；oracle 同批镜像
+- **T4 已补**：CI build-test 改矩阵 `{g++, clang++} × {c++11, c++17}` + `-Werror`
+- **T5 已补**：CI 新增 `golden-sync` job（validate_oracle → gen_golden → `git diff --exit-code tests/golden/`）；
+  顺手改掉 `scripts/ci_local.py` 里提到"不存在的 golden job"的 stale 注释
+- **T6 / T7 已补**：新增 `inc/ctl/version.hpp`（版本唯一事实源：`CTL_VERSION_MAJOR/MINOR/PATCH` + 派生 `CTL_VERSION_STRING`）；
+  `CMakeLists.txt` 改从它解析 `project(VERSION)` —— 下游拷贝后可自证版本，来源戳不再是唯一手段
+- **T8 已补**：`tests/smoke_test.cpp` 新增 `test_uncovered_paths` 钉住现状（LPF `dt=0` 冻结、LPF/Deadzone 的 NaN 透传、
+  Ramp 的 NaN dt 原样透传）；`docs/spec/lpf.md` 与 `docs/spec/ramp.md` 各补一句
+- **T9 已定**：不修（D-3 设计如此：斜坡不是饱和）；spec「观测出口」节已写明"只报钳位，不报斜坡与分离"
 
 ## 记录
 

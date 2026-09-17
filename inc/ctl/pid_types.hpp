@@ -51,7 +51,8 @@ struct PIDState {
 // 本拍瞬态布尔量（A 方案）：粘滞的 input_fault 不在此，见 PID::input_fault()
 struct PIDStatus {
     bool out_saturated_ = false;            // is_out_limited
-    bool i_saturated_ = false;              // is_i_out_limited
+    bool i_saturated_ = false;              // 被采纳的积分值真被限幅器削过（分离冻结不算 —— TODO T3）
+    bool dt_rejected_ = false;              // 本拍 dt 非法（< 1e-9 或 > 0.5，含 <= 0）已被替换为 1ms（TODO T2）
 };
 
 }  // namespace ctl

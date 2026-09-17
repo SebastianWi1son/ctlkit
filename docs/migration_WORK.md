@@ -58,7 +58,7 @@ python3 <ctlkit>/scripts/downstream_diff.py <下游>
 
 ### 2.5 记录与回滚
 
-- 记录：上游 sha + 下游基线 sha + 版本（v0.1.0）+ 三条校验结论 → §4。
+- 记录：上游 sha + 下游基线 sha + 版本（`inc/ctl/version.hpp` 为准）+ 三条校验结论 → §4。
 - 回滚：散拷贝方式 `git checkout <基线 sha> -- .`；vendor 方式直接删 `third_party/ctlkit/`。
 
 ## 3. 风险与对策

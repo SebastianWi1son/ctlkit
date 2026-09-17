@@ -109,9 +109,10 @@ class PID:
         self.last_output = d(0.0)
         self.d_filter = LPF(d_filter_Tf, dtype)
         self.ramp_out = Ramp(d(max_rate_out) if d(max_rate_out) > d(0.0) else d(FLOAT_MAX), dtype)   # 0 = 关闭 → 无上限速率
-        # 观测标志（M1）：out/i 为本拍瞬态；input_fault 为粘滞
+        # 观测标志（M1）：out/i/dt 为本拍瞬态；input_fault 为粘滞
         self.out_saturated = False
         self.i_saturated = False
+        self.dt_rejected = False
         self.input_fault = False
 
     def reset(self):
@@ -124,6 +125,7 @@ class PID:
         self.ramp_out.reset()
         self.out_saturated = False
         self.i_saturated = False
+        self.dt_rejected = False
         self.input_fault = False
 
     def calc(self, cmd, measure, dt, measure_dot=None):
@@ -144,8 +146,9 @@ class PID:
                 self.input_fault = True
                 return self.last_output
 
-        # ① dt 守卫
-        if dt <= d(0.0) or dt > d(0.5):
+        # ① dt 守卫（下界含 dt<=0；与 C++ 同步 —— TODO T2）
+        self.dt_rejected = bool(dt < d(1e-9) or dt > d(0.5))
+        if self.dt_rejected:
             dt = d(0.001)
 
         # ② 误差与 P 项
@@ -155,9 +158,11 @@ class PID:
         # ③ I 项：梯形积分 + 预限幅 + 积分分离
         i_temp = d(self.integral + d(d(d(self.ki * dt) * d(0.5)) * d(error + self.error_prev)))
         i_limited = d(clamp(i_temp, self.limit_i))
-        self.i_saturated = bool(i_limited != i_temp)          # 只报“真被钳位”（0 = 不限幅时恒 False）
-        if self.thresh_i_sep <= d(0.0) or d(abs(error)) <= self.thresh_i_sep:
+        i_commit = bool(self.thresh_i_sep <= d(0.0) or d(abs(error)) <= self.thresh_i_sep)
+        if i_commit:
             self.integral = i_limited
+        # 只报“被采纳的积分值真被削过”（TODO T3）
+        self.i_saturated = i_commit and bool(i_limited != i_temp)
 
         # ④ D 项：微分先行（外部微分优先，否则环内差分）+ LPF
         inv_dt = d(d(1.0) / dt)

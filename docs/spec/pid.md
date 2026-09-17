@@ -13,7 +13,7 @@ generated: false
 | 成员 | 说明 |
 |---|---|
 | `PID(const PIDConfig &)` | 配置一次注入，构造后不可变 |
-| `CTL_NODISCARD float calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` | 每拍计算；`ports` = 每拍端口（见下节），缺省 `nullptr` = 旧行为（环内差分）。**签名自模块 5 起冻结**：新特性只往 `PIDPorts` 加字段。返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底） |
+| `CTL_NODISCARD float calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` | 每拍计算；`ports` = 每拍端口（见下节），缺省 `nullptr` = 旧行为（环内差分）。**签名自模块 5 起冻结**：新特性只往 `PIDPorts` 加字段。返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底）。⚠ 兼容性提醒：C++11 路径下 GCC **不认 `(void)calc(...)` 显式丢弃**（clang 与 C++17 的 `[[nodiscard]]` 认），必须把返回值赋给变量再用 |
 | `void reset()` | 清全部运行时状态（含 `last_output_`）；不动 `cfg_` |
 | `void set_integral(float x)` | 积分注入（bumpless transfer）；注入值 **clamp 到 `limit_i_`**（`limit_i_ <= 0` 则不限幅） |
 | `void set_gains(const PIDGains &g)` | 在线改增益：**成组替换**；只动 `gains_`（`tunings_` 里的滤波/斜坡常数构造期已固化，在线改需重建，不在本接口范围） |
@@ -39,7 +39,8 @@ generated: false
 ```
 ⓪ NaN/Inf 守卫：cmd / measure / dt 任一非有限 → 本拍**不更新任何状态**（含 D 滤波与输出斜坡的内部状态），
                  直接返回上一拍输出（`last_output_`；代码里写成自实现的 `is_finite`，不引 <cmath>）
-① dt 守卫：dt <= 0 或 dt > 0.5 → dt := 0.001
+① dt 守卫：dt < 1e-9 或 dt > 0.5（含 dt <= 0）→ dt := 0.001，并置 status().dt_rejected_
+     （下界防 1/dt 溢出污染 D 状态；上界防垃圾 dt —— 见 docs/TODO.md T2）
 ② error = cmd - measure;  p_term = kp · error
 ③ I 项（梯形/Tustin）：
      i_temp  = integral + ki · dt · 0.5 · (error + error_prev)
@@ -63,7 +64,7 @@ generated: false
 
 ```cpp
 struct PIDState  { float error_, p_term_, d_term_, integral_, output_; };   // 数值快照（integral_ 即 I 项贡献）
-struct PIDStatus { bool out_saturated_, i_saturated_; };                    // 本拍瞬态布尔量
+struct PIDStatus { bool out_saturated_, i_saturated_, dt_rejected_; };      // 本拍瞬态布尔量
 // 粘滞的 input_fault 不在 PIDStatus 里（生命周期不同）—— 单独出口 bool input_fault()
 ```
 
@@ -71,7 +72,8 @@ struct PIDStatus { bool out_saturated_, i_saturated_; };                    // �
 |---|---|---|
 | `get_state()` | 最近一次 `calc` 的分量快照（零拷贝，const 引用） | 每拍覆盖 |
 | `status().out_saturated_` | 本拍输出**真被** `limits_.limit_out_` 钳位（限幅前取未钳位量比较；`limit_out_ <= 0` 不限幅 → 恒 false） | 本拍瞬态 |
-| `status().i_saturated_` | **本拍的 I 项候选值真被** `limits_.limit_i_` 削过（`limit_i_ <= 0` → 恒 false）。⚠ 它**不等于**"积分器处于饱和"：积分分离冻结时候选值会被削并置位，而 `integral_` 可能一直是 0（`get_state().integral_` 为准）。M2 的条件积分（F3）用它做判据前必须先明确这一点 | 本拍瞬态 |
+| `status().i_saturated_` | **被采纳的积分值真被** `limits_.limit_i_` 削过（`limit_i_ <= 0` → 恒 false）。积分分离冻结时候选值虽被削但**不生效** → 不算饱和（与 D-3"只报生效的钳位"一致） | 本拍瞬态 |
+| `status().dt_rejected_` | 本拍 `dt` 非法（`< 1e-9` 或 `> 0.5`，含 `<= 0`）已被替换为 `1ms`；用来区分"正常周期"与"守卫兜底" | 本拍瞬态 |
 | `input_fault()` | 曾收到 NaN/Inf（含 `PIDPorts.meas_dot_` 指向非有限值）即置位 | **粘滞**，只有 `reset()` 清 |
 
 - 只报"钳位"，**不报**输出斜坡（`tunings_.max_rate_out_`）与积分分离——那两者是设计意图，不是饱和（roadmap D-3）。
@@ -141,6 +143,7 @@ struct PIDPorts {
 
 | 版本 | 变更 |
 |---|---|
+| Unreleased | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
 | Unreleased | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
 | Unreleased | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
 | Unreleased | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |

@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
-project(ctlkit VERSION 0.1.0 LANGUAGES CXX)
+
+# 版本唯一事实源 = inc/ctl/version.hpp（发版只改那里；下游靠它自证版本）
+file(STRINGS inc/ctl/version.hpp _ctlkit_vm REGEX "^#define CTL_VERSION_MAJOR +[0-9]+")
+file(STRINGS inc/ctl/version.hpp _ctlkit_vn REGEX "^#define CTL_VERSION_MINOR +[0-9]+")
+file(STRINGS inc/ctl/version.hpp _ctlkit_vp REGEX "^#define CTL_VERSION_PATCH +[0-9]+")
+string(REGEX REPLACE "[^0-9]" "" _ctlkit_vm "${_ctlkit_vm}")
+string(REGEX REPLACE "[^0-9]" "" _ctlkit_vn "${_ctlkit_vn}")
+string(REGEX REPLACE "[^0-9]" "" _ctlkit_vp "${_ctlkit_vp}")
+project(ctlkit VERSION ${_ctlkit_vm}.${_ctlkit_vn}.${_ctlkit_vp} LANGUAGES CXX)
 
 # ctlkit —— 嵌入式实时控制原语（上游库）
 # 本 CMake 面向主机端：构建静态库 + 跑单测/示例。

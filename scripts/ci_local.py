@@ -46,7 +46,7 @@ SKIP_USES_PREFIX = ("actions/checkout", "actions/setup-python", "actions/cache")
 
 # 复制工作区时排除的东西
 #   注意：
-#   · 必须带上 .git —— 否则依赖 git 的步骤（如 golden job 的 git diff --exit-code）会直接挂，
+#   · 必须带上 .git —— 否则依赖 git 的步骤（如 golden-sync job 的 git diff --exit-code）会直接挂，
 #     而 CI 上 actions/checkout 是带 .git 的。本项目 .git 只有 2.2M，复制开销可忽略。
 #   · 排掉构建目录与 36M 的 reference/（后者本来就 gitignore）。
 COPY_IGNORE = shutil.ignore_patterns(

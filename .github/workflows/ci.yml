@@ -1,6 +1,6 @@
-# ctlkit CI：两件事 —— 文档门禁 · 构建+测试
+# ctlkit CI：三件事 —— 文档门禁 · 构建+测试（C++11/17 × gcc/clang）· 黄金向量↔oracle 一致性
 #
-# 改这个文件后，本地先跑 `scripts/ci_local.py`（几秒，等价于 GitHub 上的结果）。
+# 改这个文件后，本地先跑 `scripts/ci_local.py`（等价于 GitHub 上的结果）。
 
 name: CI
 
@@ -11,7 +11,6 @@ on:
 jobs:
   # ── 文档门禁 ────────────────────────────────────────────────
   # 规矩写在 docs/README.md，实现写在 scripts/check_docs.py。
-  # 没有这一步，"文档规矩"就只能靠记性 —— 而它一定会因此腐化。
   docs-gate:
     name: 文档门禁（文件头 / 类与位置 / 禁止行号 / 链接与引用存在 / fact 非孤儿）
     runs-on: ubuntu-latest
@@ -21,15 +20,46 @@ jobs:
         run: python3 scripts/check_docs.py
 
   # ── 构建 + 测试 ─────────────────────────────────────────────
-  # 黄金向量的期望值来自 oracle，但已在 tests/golden/ 里提交 —— CI 不需要 Python 环境。
+  # 承诺 C++11，就必须**真的按 C++11 编译**（编译器默认往往是 gnu++17）；
+  # -Werror 把"0 warning"从习惯变成门禁。
   build-test:
-    name: 构建 + 测试（CMake + ctest，含黄金向量回归）
+    name: 构建 + 测试（${{ matrix.cxx }} · c++${{ matrix.std }}）
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cxx: [g++, clang++]
+        std: [11, 17]        # 注意：CMAKE_CXX_STANDARD 要数字（c++11 字符串会让 CMake 配置失败）
     steps:
       - uses: actions/checkout@v4
       - name: 配置
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DCMAKE_CXX_STANDARD=${{ matrix.std }}
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          -DCMAKE_CXX_EXTENSIONS=OFF
+          -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
       - name: 构建
         run: cmake --build build --parallel
       - name: 测试
         run: ctest --test-dir build --output-on-failure
+
+  # ── 黄金向量 ↔ oracle 一致性 ────────────────────────────────
+  # 改了 oracle（refctl.py）忘了重生成黄金向量 → 这里会红。
+  golden-sync:
+    name: 黄金向量 ↔ oracle 一致性（重生成必须无 diff）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 依赖（本地已有则跳过安装）
+        run: python3 -c "import numpy, scipy" || python3 -m pip install -r oracle/requirements.txt
+      - name: oracle 自验（外借尺子）
+        run: python3 oracle/validate_oracle.py
+      - name: 重生成黄金向量
+        run: python3 oracle/gen_golden.py
+      - name: 必须无 diff
+        run: git diff --exit-code tests/golden/

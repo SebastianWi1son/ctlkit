@@ -21,8 +21,9 @@ float PID::calc(float cmd, float measure, float dt, const PIDPorts *ports) {
         input_fault_ = true;
         return last_output_;
     }
-    // ----- dt Guard -----
-    if (dt <= 0.0f || dt > 0.5f) { dt = 0.001f; }
+    // ----- dt Guard（含下界：dt < 1e-9 会让 1/dt 溢出、静默污染 D 状态 —— TODO T2）-----
+    status_.dt_rejected_ = (dt < 1e-9f || dt > 0.5f);
+    if (status_.dt_rejected_) { dt = 0.001f; }
 
     float error = cmd - measure;
     // ----- P-Term -----
@@ -30,8 +31,11 @@ float PID::calc(float cmd, float measure, float dt, const PIDPorts *ports) {
     // ----- I-Term ------
     float i_term_temp = integral_ + cfg_.gains_.ki_ * dt * 0.5f * (error + error_prev_);
     float i_term_limited = constrainf(i_term_temp, cfg_.limits_.limit_i_);
-    status_.i_saturated_ = (i_term_limited != i_term_temp);                // i_saturated flags
-    if (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_) { integral_ = i_term_limited; } // Integral Separation
+    // 积分分离：大误差时冻结（候选值丢弃）
+    const bool i_commit = (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_);
+    if (i_commit) { integral_ = i_term_limited; }
+    // 只报“被采纳的积分值真被削过”（分离冻结时候选值虽被削但未生效 —— TODO T3）
+    status_.i_saturated_ = i_commit && (i_term_limited != i_term_temp);   // i_saturated flag
     // ----- D-Term -----
     float inv_dt = 1.0f / dt;
     float d_term_raw = (meas_dot != nullptr)
