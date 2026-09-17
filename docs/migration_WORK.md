@@ -14,7 +14,7 @@ accepted: false
 | 顺序 | 下游 | 理由 | 预估 |
 |---|---|---|---|
 | ① | cyclotron/foc | 五个组件全在用（PID/LPF/Ramp/SmoothPlanner/Deadzone）；上游 spec 已接管数学权威 | ✅ **2026-09-17 完成**（记录见 §4） |
-| ② | lunokhod/actuator/wheel | 血缘源头（自带一份 `pid.hpp`/`smooth_planner.hpp`）；① 验过的流程直接套 | ~1h |
+| ② | lunokhod/actuator/wheel | 血缘源头（自带 pid/lpf/ramp/smooth_planner 四份副本，且**在全局命名空间**）；① 验过的流程直接套 | ✅ **2026-09-17 完成**（记录见 §4） |
 
 > **计划外消费者**（本机扫描发现，均用平铺具名字段写法，不在本单范围内）：`KND_Trial/app`、`fw_poc`、`lunokhod/chassis_loop`。
 > （外部仓库只写目录，不写其中的文件名 —— 门禁 R5 按本仓相对路径校验，写文件名会踩空）三者的 `ki_`/`limit_i_` 组合经核对均不在 0 语义雷区（见 §2.3），待接入时另行开单。
@@ -41,6 +41,10 @@ git rev-parse HEAD                  # 记到 §4 记录表（回滚用）
 
 回滚：删 `third_party/ctlkit/` + `git checkout <基线 sha> -- .`。
 
+**变体 ③b：下游组件在全局命名空间时**（lunokhod 的 `actuator/wheel` 即如此 —— 历史上就没有 namespace）。
+转发头里的 `using` 就写成全局的（`using ctl::PID;`）→ 消费方（`wheel.hpp` / `chassis_loop` / `fw_poc`）零改动。
+这是**继承历史**而非新增风险（迁移前这些名字本来就在全局）；要根治得给下游组件加 namespace，属它自己的破坏性变更。
+
 ### 2.2 接构建
 
 - include 指向 `.../ctlkit/inc`；编译 `.../ctlkit/src/*.cpp`。
@@ -51,6 +55,8 @@ git rev-parse HEAD                  # 记到 §4 记录表（回滚用）
 
 - 命名空间：`foc::algo::PID` → `ctl::PID`（LPF/Ramp/SmoothPlanner/Deadzone 同理）。**用转发头方案时这步免了**：
   旧名保留为别名（`using ctl::PID;`）。
+- ⚠ **裸 `calc()` 调用要补断言**：上游 `calc` 带 `nodiscard` → 下游「只驱动不断言」的写法在 `-Werror` 下直接报错。
+  cyclotron/foc 没有这种调用（返回值都用）；lunokhod 有 3 处，迁移时补成可解析推导的断言（与同文件既有算例一致）。
 - ⚠ **配置写法要动**（③ 也躲不掉）：字段从平铺变分组（`cfg.limit_out_` → `cfg.limits_.limit_out_`）。
   两种可选写法：① 逐字段（`cfg.limits_.limit_out_ = 3.0f;`，编译器逐条点名，散点最省心）；
   ② 上游 v0.1.1 起的**具名链式**（`PIDConfig{}.kp(2.0f).ki(50.0f).limit_out(3.0f).limit_i(3.0f)`，密集块最清楚）。
@@ -100,4 +106,5 @@ diff /tmp/pre.txt /tmp/post.txt && echo 行为零漂移
 
 | 日期 | 下游 | 上游版本/sha | 下游基线 sha | 方式 | ① 库 19/19 | ② 下游测试 | ③ diff | 结论 |
 |---|---|---|---|---|---|---|---|---|
+| 2026-09-17 | lunokhod/actuator/wheel（+ chassis_loop 调用点） | `dev/v0.1.1-core` @ `eb0dd5f` | `82763b8`（control/ → actuator/ + command/ 重排） | ③ + ③b（全局名转发头） | —（目标仓非本库） | ✅ 9/9 + **示例输出 16 行逐字节相同** | ✅ 副本 12 处 identical · 转发头 4 处 | ✅ **通过**：迁移提交 `7a70fa7`；补 3 处裸 calc 断言；0 语义专项无雷区 |
 | 2026-09-17 | cyclotron/foc | `dev/v0.1.1-core` @ `a1d83c4`（未发布：v0.1.0 + i_frozen_ + 链式设置器） | `13570d0`（文档体系重排） | ③ vendor + 转发头 | —（目标仓非本库） | ✅ 5/5 + **demo 输出 33 行逐字节相同** | ✅ 副本 12 处 identical · 转发头 5 处 | ✅ **通过**：迁移提交 `223dd99`；本仓 0 语义专项核对无雷区 |
