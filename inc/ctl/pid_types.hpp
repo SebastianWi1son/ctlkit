@@ -9,7 +9,7 @@
 
 namespace ctl {
 
-// --- 配置（构造期一次注入，构造后不可变）---
+// --- 配置（构造期一次注入；构造后只有 gains_ 可在线上改（PID::set_gains），其余字段不可变）---
 struct PIDGains {
     float kp_ = 0.0f;
     float ki_ = 0.0f;
