@@ -11,6 +11,8 @@ v0.0.x 是库化与加固阶段（M0 之前，无兼容承诺）。路线见 `do
 ## [Unreleased]
 
 ### Added
+- `PIDConfig` 具名链式设置器（`kp()/ki()/kd()/limit_out()/limit_i()/thresh_i_sep()/max_rate_out()/d_filter_Tf()`）：
+  可读的构造写法（替代 8 个位置值）；结构保持聚合，既有位置初始化不失效
 - `status().i_frozen_`：分离冻结出口（本该拍因积分分离而未积分；与 `i_saturated_` 互补且互斥）
 
 ### Changed

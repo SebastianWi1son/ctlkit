@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <type_traits>
 
 static int g_failures = 0;
 
@@ -385,6 +386,35 @@ static void test_i_status_semantics() {
     CHECK(near(pid2.get_state().integral_, 0.5f));
 }
 
+static void test_config_chain_setters() {
+    // 具名链式设置器（v0.1.1）：名字 → 字段 的映射正确；未设置的字段保持默认 0
+    const ctl::PIDConfig full = ctl::PIDConfig{}
+            .kp(1.0f).ki(2.0f).kd(3.0f)
+            .limit_out(4.0f).limit_i(5.0f)
+            .thresh_i_sep(6.0f).max_rate_out(7.0f).d_filter_Tf(8.0f);
+    CHECK(near(full.gains_.kp_, 1.0f) && near(full.gains_.ki_, 2.0f) && near(full.gains_.kd_, 3.0f));
+    CHECK(near(full.limits_.limit_out_, 4.0f) && near(full.limits_.limit_i_, 5.0f));
+    CHECK(near(full.tunings_.thresh_i_sep_, 6.0f) && near(full.tunings_.max_rate_out_, 7.0f) &&
+          near(full.tunings_.d_filter_Tf_, 8.0f));
+
+    const ctl::PIDConfig part = ctl::PIDConfig{}.kp(9.0f);        // 只设一个
+    CHECK(near(part.gains_.kp_, 9.0f) && near(part.gains_.ki_, 0.0f) && near(part.gains_.kd_, 0.0f));
+    CHECK(near(part.limits_.limit_out_, 0.0f) && near(part.limits_.limit_i_, 0.0f));
+    CHECK(near(part.tunings_.thresh_i_sep_, 0.0f) && near(part.tunings_.max_rate_out_, 0.0f) &&
+          near(part.tunings_.d_filter_Tf_, 0.0f));
+
+    // 链式表达式作聚合初始化器的元素（下游 foc::Config 那种嵌套聚合的用法）
+    struct Wrapper { ctl::PIDConfig pid_; float k; };
+    const Wrapper w{ctl::PIDConfig{}.kp(2.0f).limit_i(3.0f), 1.0f};
+    CHECK(near(w.pid_.gains_.kp_, 2.0f) && near(w.pid_.limits_.limit_i_, 3.0f) && near(w.k, 1.0f));
+
+#if __cplusplus >= 201703L
+    // 聚合性守卫：位置初始化（下游 Config 聚合）依赖它 —— 加成员函数可以，加构造函数不行
+    static_assert(std::is_aggregate<ctl::PIDConfig>::value,
+                  "PIDConfig 必须保持聚合类型：位置初始化与下游聚合配置依赖它");
+#endif
+}
+
 static void test_uncovered_paths() {
     // T8：把"调用方保证 dt>0"以外的边界现状钉住（文档口径见各 spec）
     ctl::LPF lpf0(0.01f);
@@ -416,6 +446,7 @@ int main() {
     test_anchor_antiwindup();
     test_dt_guard_lower_bound();
     test_i_status_semantics();
+    test_config_chain_setters();
     test_uncovered_paths();
     test_lpf();
     test_ramp();

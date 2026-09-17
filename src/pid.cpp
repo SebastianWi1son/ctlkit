@@ -91,4 +91,10 @@ float PID::constrainf(float val, float limit) {
     return val;
 }
 
+bool PID::is_finite(float x) {
+    return (x == x) && (x <= 3.402823466e+38f) && (x >= -3.402823466e+38f);
+}
+
+
+
 }  // namespace ctl
