@@ -25,6 +25,9 @@ generated: false
 
 `PIDConfig` 按域分三组（`PIDGains` / `PIDLimits` / `PIDTunings`）；**字段名与旧版一致，无旧路径别名**（分组设计见 `../design/pid_config_and_ports.md`）。
 
+构造推荐**具名链式设置器**（`PIDConfig{}.kp(2.0f).ki(50.0f).limit_out(3.0f).limit_i(3.0f)`，名字 = 字段名去掉尾下划线）；
+结构与字段顺序**冻结且保持聚合**，故既有的位置初始化（`PIDConfig{a, b, ...}`）仍可用（理由与约束见 design 文档 §3.3）。
+
 | 字段 | 默认 | 语义 |
 |---|---|---|
 | `gains_.kp_` / `gains_.ki_` / `gains_.kd_` | 0 | 增益（`ki_` 的量纲 = 输出/误差/秒；`limits_.limit_i_` 直接是输出单位的 I 贡献上限） |
@@ -145,6 +148,7 @@ struct PIDPorts {
 
 | 版本 | 变更 |
 |---|---|
+| Unreleased | 新增 `PIDConfig` 具名链式设置器（8 个字段各一个；只增不改，结构仍为聚合，位置初始化不失效） |
 | Unreleased | 新增 `status().i_frozen_`（分离冻结出口，与 `i_saturated_` 互补：一个答"顶住了吗"、一个答"这拍积分了吗"） |
 | Unreleased | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
 | Unreleased | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
