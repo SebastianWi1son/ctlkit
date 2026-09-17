@@ -1,6 +1,10 @@
+---
+class: fact
+generated: false
+---
 # SmoothPlanner — 行为契约
 
-> 源码：`include/ctl/smooth_planner.hpp` + `src/smooth_planner.cpp`
+> 源码：`../../inc` + `src/smooth_planner.cpp`
 > 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.3（与 legacy `dsp_traj` 完全同构）
 
 ## 接口

@@ -1,3 +1,7 @@
+---
+class: fact
+generated: false
+---
 # ctlkit
 
 > 个人上游基础算法库：**嵌入式实时控制原语**（控制 + 滤波）。
@@ -26,18 +30,21 @@
 | `LPF` | `<ctl/lpf.hpp>` | 一阶低通 `α = dt/(Tf+dt)`；Tf=0 直通 | [docs/spec/lpf.md](docs/spec/lpf.md) |
 | `Ramp` | `<ctl/ramp.hpp>` | 斜率限幅（每帧 clamp 到 `prev ± max_rate·dt`） | [docs/spec/ramp.md](docs/spec/ramp.md) |
 | `SmoothPlanner` | `<ctl/smooth_planner.hpp>` | 二阶轨迹规划 = Ramp + 两级 LPF | [docs/spec/smooth_planner.md](docs/spec/smooth_planner.md) |
+| `Deadzone` | `<ctl/deadzone.hpp>` | 抛物线软死区 / 硬死区；`range<=0` 直通 | [docs/spec/deadzone.md](docs/spec/deadzone.md) |
 
 **待纳入候选**（尚未收编，见 [docs/roadmap.md](docs/roadmap.md)）：
-soft deadzone（现 `foc::algo::Deadzone`，FOC_MATH_SPEC §7）、Notch / 二阶滤波、观测器与状态估计（M4 预研）。
+Notch / 二阶滤波、观测器与状态估计（M4 预研）。
 
 ## 目录结构
 
 ```
 ctlkit/
-├── include/ctl/          # 公开头文件（API 面）
+├── inc/ctl/              # 公开头文件（API 面）
 ├── src/                  # 实现
 ├── examples/             # 最小示例（也可当文档看）
-├── tests/                # 主机端单测；黄金向量回归在 M0 建立
+├── tests/                # 主机端单测 + golden/（oracle 生成的黄金向量）
+├── oracle/               # 唯一可信 oracle（期望值来源，见 oracle/README.md）
+├── scripts/              # 文档门禁与本 CI 脚本
 ├── CMakeLists.txt        # 主机端构建（静态库 + 测试 + 示例）
 └── docs/
     ├── spec/             # 现状契约（唯一事实源，不许过期）
@@ -46,18 +53,20 @@ ctlkit/
     └── roadmap.md        # 路线图 M0~M4 + 工时估算 + 决策点
 ```
 
-## 快速上手
+## 测试与 oracle
 
-```cpp
-#include <ctl/pid.hpp>
+**唯一可信 oracle** = [`oracle/refctl.py`](oracle/README.md)：按 `docs/spec/` 独立重写的参考实现
+（不读不调 C++ 源码），已用**外借尺子**交叉验证：`scipy.signal.lfilter`（线性部分）、
+`fractions.Fraction` 精确有理数（含钳位等非线性路径）、解析闭式解。规则见 [AGENTS.md](AGENTS.md) §2。
 
-ctl::PIDConfig cfg;
-cfg.kp_ = 4.0f;  cfg.ki_ = 200.0f;
-cfg.limit_out_ = 12.0f;  cfg.limit_i_ = 12.0f;
-
-ctl::PID pid(cfg);
-float u = pid.calc(target, measure, dt);   // dt 由调用方传入（s）
 ```
+python3 oracle/validate_oracle.py    # 先验 oracle（全绿才可信）
+python3 oracle/gen_golden.py         # 重新生成 tests/golden/*.csv（改 oracle 后必须重跑）
+```
+
+- `tests/` 的期望值**只**来自 `tests/golden/*.csv`（已提交，CI 无需 Python）；
+  容差 `tol = 8·dev + 1e-6·scale` 逐用例记录在 CSV 头部，可审计。
+- 判别力已实测：改坏实现一行 → 黄金回归变红（记录见 [oracle/README.md](oracle/README.md) §6）。
 
 ```bash
 cmake -S . -B build && cmake --build build
@@ -67,7 +76,7 @@ ctest --test-dir build --output-on-failure
 
 ## 下游消费方式
 
-- 现阶段：**拷贝** `include/ctl/` 与 `src/*.cpp` 进下游工程（嵌入式项目惯例）；
+- 现阶段： **拷贝** `inc` 与 `src/*.cpp` 进下游工程（嵌入式项目惯例）；
   拷贝文件头保留来源戳与版本，便于溯源与 diff。
 - 下游：`cyclotron/foc`、`lunokhod/actuator/wheel`。迁移与双副本同步策略见
   [docs/roadmap.md](docs/roadmap.md) §6 D-6（本库为上游，下游只读消费）。
@@ -86,6 +95,9 @@ ctest --test-dir build --output-on-failure
 | `docs/design/` | 打算**怎么改**（设计稿） | ✅ 允许，实现后沉淀进 spec |
 | `docs/research/` | **为什么**这么设计（调研/对比/归档） | ✅ 允许，作为历史记录 |
 | `docs/roadmap.md` | 接下来做什么、多久 | ✅ 滚动更新 |
+
+文档的类与位置、命名、机器门禁的规矩见 [docs/README.md](docs/README.md) 与 [AGENTS.md](AGENTS.md)；
+改完任何文档跑 `python3 scripts/check_docs.py`。
 
 ## 版本与许可
 

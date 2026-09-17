@@ -1,6 +1,10 @@
+---
+class: fact
+generated: false
+---
 # PID — 行为契约
 
-> 源码：`include/ctl/pid.hpp` + `src/pid.cpp`
+> 源码：`../../inc` + `src/pid.cpp`
 > 血缘：lunokhod `control/wheel` → cyclotron `foc::algo::PID` → ctlkit `ctl::PID`（行为未变）
 > 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.4
 

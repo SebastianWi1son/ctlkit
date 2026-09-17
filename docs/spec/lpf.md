@@ -1,6 +1,10 @@
+---
+class: fact
+generated: false
+---
 # LPF — 行为契约
 
-> 源码：`include/ctl/lpf.hpp` + `src/lpf.cpp` ｜ 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.1
+> 源码：`../../inc` + `src/lpf.cpp` ｜ 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.1
 
 ## 接口
 

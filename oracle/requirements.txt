@@ -1,0 +1,4 @@
+# oracle 依赖（只有 validate_oracle.py 需要；gen_golden.py 只需 numpy）
+# 版本与黄金向量生成环境一致（见 oracle/README.md「可复现性」）
+numpy==1.26.4
+scipy==1.11.4

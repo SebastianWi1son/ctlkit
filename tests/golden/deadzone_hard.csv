@@ -1,0 +1,25 @@
+# ctlkit-golden v1
+# case: deadzone_hard
+# component: deadzone
+# oracle: oracle/refctl.py
+# oracle-sha256: 78124f941ca1
+# params: range=0.5 soft=0.0
+# tol: 1.5814697269177713e-06
+# dev: 4.768371586472142e-08
+# scale: 1.2
+# columns: error expected
+-1.2 -1.2
+-0.5 -0.5
+-0.3 0.0
+-0.1 0.0
+0.0 0.0
+0.1 0.0
+0.3 0.0
+0.5 0.5
+1.2 1.2
+-1.2 -1.2
+-0.5 -0.5
+-0.3 0.0
+-0.1 0.0
+0.0 0.0
+0.1 0.0

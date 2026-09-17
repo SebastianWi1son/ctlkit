@@ -5,3 +5,5 @@ cmake-build-*/
 *.a
 *.d
 compile_commands.json
+__pycache__/
+*.pyc

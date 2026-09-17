@@ -1,0 +1,35 @@
+# ctlkit CI：两件事 —— 文档门禁 · 构建+测试
+#
+# 改这个文件后，本地先跑 `scripts/ci_local.py`（几秒，等价于 GitHub 上的结果）。
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # ── 文档门禁 ────────────────────────────────────────────────
+  # 规矩写在 docs/README.md，实现写在 scripts/check_docs.py。
+  # 没有这一步，"文档规矩"就只能靠记性 —— 而它一定会因此腐化。
+  docs-gate:
+    name: 文档门禁（文件头 / 类与位置 / 禁止行号 / 链接与引用存在 / fact 非孤儿）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 检查
+        run: python3 scripts/check_docs.py
+
+  # ── 构建 + 测试 ─────────────────────────────────────────────
+  # 黄金向量的期望值来自 oracle，但已在 tests/golden/ 里提交 —— CI 不需要 Python 环境。
+  build-test:
+    name: 构建 + 测试（CMake + ctest，含黄金向量回归）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: 构建
+        run: cmake --build build --parallel
+      - name: 测试
+        run: ctest --test-dir build --output-on-failure

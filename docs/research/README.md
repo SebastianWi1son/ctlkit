@@ -1,3 +1,7 @@
+---
+class: fact
+generated: false
+---
 # 调研归档索引（原「PID 对比归档」）
 
 > 归档目的：对比 [Liu-Curiousity/pid](https://github.com/Liu-Curiousity/pid)（GitHub 公开库）与本库
@@ -22,7 +26,7 @@ docs/research/
     └── cyclotron_foc/             # cyclotron 源码原样快照（pid / lpf / ramp 的 hpp+cpp + 溯源说明）
 ```
 
-> 活代码（库化后）在仓库的 `include/ctl/` + `src/`；本目录两份快照仅供血缘考古，**不以它们为准**。
+> 活代码（库化后）在仓库的 `../../inc` + `src/`；本目录两份快照仅供血缘考古， **不以它们为准**。
 
 ## 快速结论
 
@@ -50,5 +54,5 @@ MathWorks 等）的分层目标架构（原语 → 核心 → 增强 → 系统�
 ## 注意事项
 
 - GitHub 仓库**未附带 LICENSE 文件**（头文件标注 `(c) 2025 QDrive`），此处仅作内部学习/对比归档，不直接引入商用代码。
-- 本地源码为 cyclotron 内原样快照（归档）；自 v0.0.1 起**上游库 ctlkit 为准**（活代码 `include/ctl/` + `src/`，
+- 本地源码为 cyclotron 内原样快照（归档）；自 v0.0.1 起 **上游库 ctlkit 为准**（活代码 `../../inc` + `src/`，
   行为契约 `docs/spec/`），下游（cyclotron / lunokhod）改为从本库同步，不再各自演化。

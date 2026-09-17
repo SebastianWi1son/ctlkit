@@ -1,3 +1,7 @@
+---
+class: fact
+generated: false
+---
 # PID 优化考量（未来优化候选清单）
 
 > 针对本库 `ctl::PID`（库化前 `foc::algo::PID`）的优化候选，按"借鉴 GitHub 库 → 补全工业级能力 → 健壮性 → 诊断性"组织。
@@ -202,8 +206,8 @@ PIDFlags flags() const;   // 或逐字段 const getter
   `calc()` 每拍多存 2 个 bool（可打包进 1 byte，RT 无碍）；
   `PIDFlags` 默认初始化必须给（`= false`），否则首次 `flags()` 读到垃圾值。
 
-- **落地位置（⚠ 上游库定案后已变更）**：`docs/research/reference/` 下两份是**只读归档快照**，不落地。
-  落地目标是**上游库 ctlkit**（`include/ctl/pid.hpp` + `src/pid.cpp`）；下游消费副本为
+- **落地位置（⚠ 上游库定案后已变更）**：`docs/research/reference/` 下两份是 **只读归档快照**，不落地。
+  落地目标是 **上游库 ctlkit**（`../../inc` + `src/pid.cpp`）；下游消费副本为
   `cyclotron/foc/inc/foc/algo/pid.hpp` 与 `lunokhod/actuator/wheel/inc/pid.hpp`，由库统一演化后同步
   （策略见库 `docs/roadmap.md` §6 D-6）。落地时同步本库 `docs/spec/pid.md` 与 `docs/design/pid_config_and_ports.md`。
 

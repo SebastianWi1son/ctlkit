@@ -1,6 +1,10 @@
+---
+class: fact
+generated: false
+---
 # Ramp — 行为契约
 
-> 源码：`include/ctl/ramp.hpp` + `src/ramp.cpp` ｜ 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.2
+> 源码：`../../inc` + `src/ramp.cpp` ｜ 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.2
 
 ## 接口
 

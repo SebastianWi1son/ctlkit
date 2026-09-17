@@ -10,10 +10,11 @@ add_library(ctl STATIC
     src/lpf.cpp
     src/ramp.cpp
     src/smooth_planner.cpp
+    src/deadzone.cpp
 )
 add_library(ctlkit::ctl ALIAS ctl)
 
-target_include_directories(ctl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(ctl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inc)
 target_compile_features(ctl PUBLIC cxx_std_11)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

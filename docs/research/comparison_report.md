@@ -1,3 +1,7 @@
+---
+class: fact
+generated: false
+---
 # PID 对比报告：Liu-Curiousity/pid vs cyclotron foc::algo::PID
 
 ## 0. 对比对象

@@ -1,3 +1,8 @@
+---
+class: work
+generated: false
+accepted: false
+---
 # PID 配置与端口设计（设计稿 v0.1）
 
 > **状态**：设计稿，**未实现**。目标里程碑 M0（配置分组）与 M1~M2（端口启用）。

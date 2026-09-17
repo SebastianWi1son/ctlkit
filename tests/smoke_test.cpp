@@ -6,6 +6,7 @@
 //
 // 注意：本文件中的断言即当前行为契约的可执行版本；行为变更时必须同步改这里。
 
+#include <ctl/deadzone.hpp>
 #include <ctl/pid.hpp>
 #include <ctl/lpf.hpp>
 #include <ctl/ramp.hpp>
@@ -110,6 +111,21 @@ static void test_smooth_planner() {
     CHECK(near(planner.calc(0.0f, 1e-3f), 0.0f));
 }
 
+static void test_deadzone() {
+    ctl::Deadzone soft(0.5f, true);
+    CHECK(near(soft.calc(0.3f), 0.18f, 1e-6f));    // e·(|e|/range) = 0.3·0.6
+    CHECK(near(soft.calc(-0.3f), -0.18f, 1e-6f));  // 同号衰减
+    CHECK(near(soft.calc(0.5f), 0.5f));            // 边界 |e|=range 连续
+    CHECK(near(soft.calc(1.2f), 1.2f));            // 区外原样
+
+    ctl::Deadzone hard(0.5f, false);
+    CHECK(near(hard.calc(0.3f), 0.0f));            // 硬死区带内归零
+    CHECK(near(hard.calc(-1.2f), -1.2f));
+
+    ctl::Deadzone off(0.0f, true);                 // range=0 → 直通（无除零）
+    CHECK(near(off.calc(0.7f), 0.7f));
+}
+
 int main() {
     test_pid_p_term();
     test_pid_trapezoid_integral();
@@ -118,6 +134,7 @@ int main() {
     test_lpf();
     test_ramp();
     test_smooth_planner();
+    test_deadzone();
 
     if (g_failures == 0) {
         std::printf("ctlkit smoke test: all checks passed\n");

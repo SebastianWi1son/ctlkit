@@ -1,12 +1,16 @@
+---
+class: fact
+generated: false
+---
 # 上游基础算法优化概念蓝图（PID 优先）
 
 > 回答一个问题：把 `cyclotron/foc` 的基础算法组件（PID / LPF / Ramp）从"现状 + 候选清单"
-> 演进成一个什么样的体系？本蓝图给出**分层目标架构、主流库对照、里程碑、关键设计决策、验证策略**。
+> 演进成一个什么样的体系？本蓝图给出 **分层目标架构、主流库对照、里程碑、关键设计决策、验证策略**。
 >
 > 输入：`docs/research/comparison_report.md`（现状）、`docs/research/optimization_considerations.md`（候选 A~E）
 > 调研：主流嵌入式/工业 PID 实现（ArduPilot、SimpleFOC、ODrive、VESC、STM32 MCSDK、MathWorks 等，见 §2）
-> 定位：本库（ctlkit）自 v0.0.1 起为**唯一事实源**——算法源码在 `include/ctl/` + `src/`，
-> 行为契约在 `docs/spec/`；`cyclotron/foc` 与 `lunokhod/actuator/wheel` 退化为**下游消费副本**（同步策略见 §6 D-6）。
+> 定位：本库（ctlkit）自 v0.0.1 起为 **唯一事实源**——算法源码在 `../inc` + `src/`，
+> 行为契约在 `docs/spec/`；`cyclotron/foc` 与 `lunokhod/actuator/wheel` 退化为 **下游消费副本**（同步策略见 §6 D-6）。
 > 设计稿：`docs/design/pid_config_and_ports.md`（配置分组 + 端口结构，M0~M2 落地）。
 
 ---
@@ -155,10 +159,10 @@
 - **D-5 NaN 时输出语义**：默认方案 = **本拍跳过状态更新、返回上一拍输出**（对 FOC 更安全：
   电压指令不跳变），置 fault 标志由上层决定是否切断；备选"返回 0"会令输出瞬间跳零，
   需上层故障逻辑配合。与 foc 上层过流/故障语义对齐后定案（原文档 C1 的开放问题）。
-- **D-6 下游副本同步**：本库（ctlkit）为**上游唯一事实源**；`cyclotron/foc`（原 `foc::algo`）与
-  `lunokhod/actuator/wheel`（原始血缘）退化为**下游消费副本**：拷贝 `include/ctl/` + `src/*.cpp`，
+- **D-6 下游副本同步**：本库（ctlkit）为 **上游唯一事实源**；`cyclotron/foc`（原 `foc::algo`）与
+  `lunokhod/actuator/wheel`（原始血缘）退化为 **下游消费副本**：拷贝 `../inc` + `src/*.cpp`，
   拷贝文件头保留来源戳 `// from ctlkit vX.Y.Z`，批次迁移后跑下游 diff 校验。
-  两下游**不得各自继续演化**（此前的双活副本已造成血缘混乱——本库正是为终结它而建）。
+  两下游 **不得各自继续演化**（此前的双活副本已造成血缘混乱——本库正是为终结它而建）。
   迁移同时结清 `FOC_MATH_SPEC` §10 的 P5（namespace 统一为 `ctl`）与 P1（0 语义）。
 - **D-7 配置/端口结构（M0~M2 的落地形态）**：PID 配置按 `gains/limits/tuning` 分组、
   每拍输入收进 `PIDPorts`（`calc(..., const PIDPorts * = nullptr)`，签名从此冻结）。
@@ -185,7 +189,7 @@ M4 依赖 M1+M2 的注入口与调参口就绪。
 
 | 包 | 内容 | 工时 |
 |---|---|---|
-| **地基** | 仓库结构（已完成）+ 黄金向量回归骨架 | 4~8h（结构部分已完成） |
+| **地基** | 仓库结构 + oracle + 黄金向量回归骨架 | 4~8h（**已完成**：`oracle/` + `tests/golden/` + `tests/golden_test.cpp`） |
 | **M0 加固** | 0 语义定案(2~3h) + NaN 防护(2h) + set_integral(1h) + `[[nodiscard]]` | 6~12h |
 | **M1 观测** | PIDFlags(2h) + PIDState(3h) + 观测结构体(2h) + set_gains(2h) | 8~15h |
 | **M2 品质** | 外部微分(4h) + 条件积分(5h) + 前馈(4h) + 目标 LPF(3h) + 回归/硬件验证(10h) | 20~30h |
@@ -202,14 +206,16 @@ M4 依赖 M1+M2 的注入口与调参口就绪。
 
 ## 8. 验证与回归策略
 
-1. **黄金向量**：固定输入序列（阶跃/斜坡/正弦 + dt 扰动）下对 p/i/d/integral/output
-   逐拍快照，M0 起建立，任何 L1/L2 改动必须证明"默认关闭 = 旧版逐位一致"。
+1. **黄金向量**：固定输入序列（阶跃/斜坡 + dt 扰动）下逐拍比对。
+   **已建立**（`oracle/` → `tests/golden/*.csv` → `tests/golden_test.cpp`，11 个用例，容差逐例推导）；
+   当前快照的是**输出**；p/i/d/integral 分量快照待 D1（PIDState）落地后加密。
+   任何 L1/L2 改动必须证明"默认关闭 = 旧版逐位一致"。
 2. **特性测试**：饱和注入（看恢复拍数）、积分分离边界抖动（B2 前后对比）、NaN 注入
    （3 拍内恢复）、bumpless 切换（注入 vs 不注入的输出跳变）。
 3. **硬件验收**（cyclotron 实机）：电流环阶跃 + 速度环打滑/堵转场景
    （D3 饱和标志 + 残差监测是判定依据，对应 lunokhod TODO P19）。
 4. **文档同步**：行为契约以本库 `docs/spec/` 为唯一事实源（本库改动先改 spec 再加回归）；
-   下游（`cyclotron/foc/docs/FOC_MATH_SPEC.md` 等）改为**引用**本库 spec，不再各自维护公式副本。
+   下游（cyclotron 侧的 FOC_MATH_SPEC 等）改为**引用**本库 spec，不再各自维护公式副本。
 
 ## 9. 参考来源
 
