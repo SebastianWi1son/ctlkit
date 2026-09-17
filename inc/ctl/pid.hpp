@@ -43,6 +43,10 @@ struct PIDConfig {
     PIDTunings tunings_;
 };
 
+struct PIDPorts {
+    const float *meas_dot_ = nullptr;
+};
+
 // --- observe sink ---
 struct PIDState {
     float error_ = 0.0f;
@@ -61,7 +65,7 @@ struct PIDStatus {
 class PID {
 public:
     explicit PID(const PIDConfig &cfg);     // 显式确保PIDConfig作为参数参与构造
-    CTL_NODISCARD float calc(float cmd, float measure, float dt);
+    CTL_NODISCARD float calc(float cmd, float measure, float dt, const PIDPorts *ports = nullptr);
     void reset();
     void set_integral(float x);
     void set_gains(const PIDGains &g);

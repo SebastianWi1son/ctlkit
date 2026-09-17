@@ -235,6 +235,34 @@ static void test_pid_observation() {
     CHECK(!pid4.input_fault());                                // reset 才清
 }
 
+static void test_pid_external_derivative() {
+    // A1 外部微分注入：直接替代环内差分（无冲击特性不变），之后同样过 D 滤波
+    ctl::PIDConfig cfg;
+    cfg.gains_.kd_ = 0.1f;
+    cfg.limits_.limit_out_ = 100.0f;
+    cfg.limits_.limit_i_ = 100.0f;
+    ctl::PID pid(cfg);
+
+    CHECK(near(pid.calc(0.0f, 0.0f, 1e-3f), 0.0f));                 // 建立状态
+    CHECK(near(pid.calc(0.0f, 0.1f, 1e-3f), -10.0f, 1e-4f));        // 环内差分：-0.1·(0.1/0.001)
+
+    ctl::PIDPorts ports;
+    float md = -50.0f;
+    ports.meas_dot_ = &md;
+    CHECK(near(pid.calc(0.0f, 0.1f, 1e-3f, &ports), 5.0f, 1e-4f));  // 注入 -50 → -0.1·(-50)
+    CHECK(near(pid.calc(0.0f, 0.2f, 1e-3f), -10.0f, 1e-4f));        // nullptr 路径不变
+
+    // 注入 NaN → 按非法输入：返回上一拍输出 + fault 粘滞，状态零污染
+    float nan_md = std::nanf("");
+    ports.meas_dot_ = &nan_md;
+    CHECK(near(pid.calc(0.0f, 0.2f, 1e-3f, &ports), -10.0f, 1e-4f));
+    CHECK(pid.input_fault());
+    CHECK(near(pid.calc(0.0f, 0.3f, 1e-3f), -10.0f, 1e-4f));        // 恢复后继续
+
+    ctl::PIDPorts empty;                                             // 给了 ports 但没给导数 = 旧行为
+    CHECK(near(pid.calc(0.0f, 0.4f, 1e-3f, &empty), -10.0f, 1e-4f));
+}
+
 int main() {
     test_pid_p_term();
     test_pid_trapezoid_integral();
@@ -244,6 +272,7 @@ int main() {
     test_pid_set_integral();
     test_pid_zero_means_unlimited();
     test_pid_observation();
+    test_pid_external_derivative();
     test_lpf();
     test_ramp();
     test_smooth_planner();

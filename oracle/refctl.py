@@ -126,7 +126,7 @@ class PID:
         self.i_saturated = False
         self.input_fault = False
 
-    def calc(self, cmd, measure, dt):
+    def calc(self, cmd, measure, dt, measure_dot=None):
         d = self.dtype
         cmd = d(cmd)
         measure = d(measure)
@@ -136,6 +136,13 @@ class PID:
         if not (is_finite(cmd) and is_finite(measure) and is_finite(dt)):
             self.input_fault = True
             return self.last_output
+
+        # ⓪' 端口（A1）：外部微分也算输入，NaN/Inf 同语义处理
+        if measure_dot is not None:
+            measure_dot = d(measure_dot)
+            if not is_finite(measure_dot):
+                self.input_fault = True
+                return self.last_output
 
         # ① dt 守卫
         if dt <= d(0.0) or dt > d(0.5):
@@ -152,9 +159,12 @@ class PID:
         if self.thresh_i_sep <= d(0.0) or d(abs(error)) <= self.thresh_i_sep:
             self.integral = i_limited
 
-        # ④ D 项：微分先行（对测量微分）+ LPF
+        # ④ D 项：微分先行（外部微分优先，否则环内差分）+ LPF
         inv_dt = d(d(1.0) / dt)
-        d_term_raw = d(d(-self.kd) * d(inv_dt * d(measure - self.measure_prev)))
+        if measure_dot is not None:
+            d_term_raw = d(d(-self.kd) * measure_dot)
+        else:
+            d_term_raw = d(d(-self.kd) * d(inv_dt * d(measure - self.measure_prev)))
         d_term = self.d_filter.calc(d_term_raw, dt)
 
         # ⑤ 状态更新

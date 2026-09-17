@@ -9,10 +9,16 @@ PID::PID(const PIDConfig &cfg): cfg_(cfg),      // PID Unified Register Entrance
         // 这里把“关闭”归一化成无上限速率（与 is_finite 上界同一常量），斜坡恒直通且语义不串层。
         ramp_out_((cfg.tunings_.max_rate_out_ > 0.0f) ? cfg.tunings_.max_rate_out_ : 3.402823466e+38f) {}
 
-float PID::calc(float cmd, float measure, float dt) {
+float PID::calc(float cmd, float measure, float dt, const PIDPorts *ports) {
     // ----- NaN Guard -----
     if (!is_finite(cmd) || !is_finite(measure) || !is_finite(dt)) {
         input_fault_ = true;   // 粘滞：reset() 才清
+        return last_output_;
+    }
+    // ----- ports unpack -----
+    const float *meas_dot = (ports != nullptr) ? ports->meas_dot_ : nullptr;
+    if (meas_dot != nullptr && !is_finite(*meas_dot)) {
+        input_fault_ = true;
         return last_output_;
     }
     // ----- dt Guard -----
@@ -28,7 +34,9 @@ float PID::calc(float cmd, float measure, float dt) {
     if (cfg_.tunings_.thresh_i_sep_ <= 0.0f || fabs(error) <= cfg_.tunings_.thresh_i_sep_) { integral_ = i_term_limited; } // Integral Separation
     // ----- D-Term -----
     float inv_dt = 1.0f / dt;
-    float d_term_raw = -cfg_.gains_.kd_ * inv_dt * (measure - measure_prev_);
+    float d_term_raw = (meas_dot != nullptr)
+            ? -cfg_.gains_.kd_ * (*meas_dot)
+            : -cfg_.gains_.kd_ * inv_dt * (measure - measure_prev_);
     float d_term = d_filter_.calc(d_term_raw, dt);                                      // d term lpf
     // ----- Update State-----
     error_prev_ = error;

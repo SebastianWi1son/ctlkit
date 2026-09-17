@@ -147,6 +147,16 @@ bool run_case(const Case &c, Outcome &o) {
                 }
             }
         }
+    } else if (c.component == "pid_ports") {
+        // 端口用例：第 4 列是外部微分（喂给 PIDPorts.meas_dot_），末列是期望输出
+        ctl::PID inst = make_pid(c);
+        for (i = 0; i < c.rows.size(); ++i) {
+            const std::vector<float> &r = c.rows[i];
+            if (r.size() != 5) return false;
+            ctl::PIDPorts ports;
+            ports.meas_dot_ = &r[3];
+            check_row(inst.calc(r[0], r[1], r[2], &ports), r[4], c.tol, o);
+        }
     } else if (c.component == "lpf") {
         ctl::LPF inst(param(c, "Tf"));
         for (i = 0; i < c.rows.size(); ++i) {

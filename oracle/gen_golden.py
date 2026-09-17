@@ -113,6 +113,12 @@ def build_cases():
         {"kp": 4.0, "ki": 200.0, "kd": 0.0, "limit_out": 100.0, "limit_i": 100.0},
         pid_rows(const(1.0, n), const(0.0, n), const(0.001, n)))
 
+    # 外部微分注入（A1）：measure_dot 列直接替代环内差分（kd 生效，之后同样过 D 滤波）
+    n = 12
+    add("pid_ext_deriv", "pid_ports",
+        {"kp": 0.0, "ki": 0.0, "kd": 0.1, "limit_out": 100.0, "limit_i": 100.0},
+        [(0.0, 0.5, 0.001, md) for md in ladder([-50.0, 25.0, 0.0, 10.0], n)])
+
     # ── LPF ──────────────────────────────────────────────
     n = 24
     add("lpf_step", "lpf", {"Tf": 0.01},
@@ -166,6 +172,12 @@ def run_case(case, dtype):
     if case["component"] == "deadzone":
         inst = Deadzone(p.get("range", 0.0), p.get("soft", 1.0) != 0.0, dtype=dtype)
         return [float(inst.calc(row[0])) for row in case["rows"]]
+    if case["component"] == "pid_ports":
+        inst = PID(p.get("kp", 0.0), p.get("ki", 0.0), p.get("kd", 0.0),
+                   p.get("limit_out", 0.0), p.get("limit_i", 0.0),
+                   p.get("thresh_i_sep", 0.0), p.get("max_rate_out", 0.0),
+                   p.get("d_filter_Tf", 0.0), dtype=dtype)
+        return [float(inst.calc(r[0], r[1], r[2], measure_dot=r[3])) for r in case["rows"]]
     raise ValueError(f"未知组件：{case['component']}")
 
 
@@ -224,7 +236,8 @@ def main():
                     "ramp": "cmd dt expected",
                     "smooth_planner": "cmd dt expected",
                     "deadzone": "error expected",
-                    "pid_flags": "cmd measure dt expected out_sat i_sat"}[case["component"]]
+                    "pid_flags": "cmd measure dt expected out_sat i_sat",
+                    "pid_ports": "cmd measure dt measure_dot expected"}[case["component"]]
             f.write(f"# columns: {cols}\n")
             for row, exp in zip(case["rows"], exp64):
                 f.write(" ".join([repr(float(v)) for v in row] + [repr(v) for v in exp]) + "\n")

@@ -13,7 +13,7 @@ generated: false
 | 成员 | 说明 |
 |---|---|
 | `PID(const PIDConfig &)` | 配置一次注入，构造后不可变 |
-| `CTL_NODISCARD float calc(cmd, measure, dt)` | 每拍计算；返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底） |
+| `CTL_NODISCARD float calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` | 每拍计算；`ports` = 每拍端口（见下节），缺省 `nullptr` = 旧行为（环内差分）。**签名自模块 5 起冻结**：新特性只往 `PIDPorts` 加字段。返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底） |
 | `void reset()` | 清全部运行时状态（含 `last_output_`）；不动 `cfg_` |
 | `void set_integral(float x)` | 积分注入（bumpless transfer）；注入值 **clamp 到 `limit_i_`**（`limit_i_ <= 0` 则不限幅） |
 
@@ -42,9 +42,12 @@ generated: false
      i_temp  = clamp(i_temp, ±limit_i)                    # 预限幅（抗饱和）；limit_i <= 0 → 不限幅
      if thresh_i_sep <= 0 或 |error| <= thresh_i_sep:
          integral = i_temp                                # 否则冻结（积分分离）
-④ D 项（微分先行 + LPF）：
-     d_raw = -kd · (measure - measure_prev) / dt          # 只对测量微分，设定值不进 D
-     d_term = d_filter.calc(d_raw, dt)                    # Tf=0 → 直通
+④ D 项（微分先行 + LPF）：微分来源二选一
+     if ports 提供了 measure_dot:                          # A1 外部微分（观测器）
+         d_raw = -kd · measure_dot                         # 直接替代环内差分；符号约定 = d(measure)/dt
+     else:
+         d_raw = -kd · (measure - measure_prev) / dt       # 环内差分（旧行为）；设定值不进 D
+     d_term = d_filter.calc(d_raw, dt)                     # Tf=0 → 直通（两条来源同样过滤波）
 ⑤ 合成输出：
      output = clamp(p_term + d_term + integral, ±limit_out)   # limit_out <= 0 → 不限幅
      output = ramp_out.calc(output, dt)                       # 斜坡恒开启（关闭 → 无上限速率，直通）
@@ -58,6 +61,25 @@ generated: false
 - `reset()`：上述状态全清零（等价于"从未运行过"）；**不触碰** `cfg_`。
 - 注意：`reset()` 后 `measure_prev_ = 0`，若首拍 measure 非 0，D 项会出现一拍脉冲
   （微分先行的正常语义；bumpless 场景用 `set_integral` / 外部微分注入解决）。
+
+## 每拍端口（`PIDPorts`，模块 5 · A1）
+
+```cpp
+struct PIDPorts {
+    const float *meas_dot_ = nullptr;   // 外部微分（观测器提供）；nullptr → 用环内差分
+};
+```
+
+| 情况 | 行为 |
+|---|---|
+| `ports == nullptr` | 旧行为：D 项用环内差分 |
+| `ports != nullptr` 但 `meas_dot_ == nullptr` | 同上（等同未提供） |
+| `meas_dot_` 指向有限值 | D 项**直接替代**环内差分：`d_raw = -kd·(*meas_dot_)`；**量纲/符号 = d(measure)/dt**（与环内差分同号） |
+| `meas_dot_` 指向 NaN/Inf | 按**非法输入**处理（D5-1）：本拍不更新任何状态、返回上一拍输出、置 `input_fault_` |
+
+**为什么要有它（解决的问题）**：D 项本质是对测量的**差分**，差分在高噪声/低采样率下放大噪声；
+若系统已有观测器/状态估计器提供高质量导数（如 FOC 的速度估计），环内再差分一次是**重复劳动 + 额外噪声 + 额外相位滞后**。
+注入外部导数 = 让 D 项直接用"更干净的同一信息"，同时保留 D 滤波与微分先行的无冲击特性。
 
 ## 非法输入（NaN / Inf）行为（M0 · C1）
 
@@ -100,6 +122,7 @@ generated: false
 
 | 版本 | 变更 |
 |---|---|
+| Unreleased | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
 | Unreleased | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |
 | Unreleased | M0：「`0` 语义统一（D-1）——限幅类 `<= 0` = 不限幅；斜坡 0=关闭在构造期归一化；**行为变更点：`limit = 0` 的既有配置** |
 | Unreleased | M0 部分：NaN/Inf 守卫（返回上一拍输出、零污染）、`set_integral`（clamp 注入）、`CTL_NODISCARD` |
