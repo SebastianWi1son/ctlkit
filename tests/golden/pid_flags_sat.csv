@@ -2,7 +2,7 @@
 # case: pid_flags_sat
 # component: pid_flags
 # oracle: oracle/refctl.py
-# oracle-sha256: 143e333176f1
+# oracle-sha256: adc63ee935ba
 # params: kp=20.0 ki=2000.0 kd=0.0 limit_out=1.0 limit_i=0.5
 # tol: 1e-06
 # dev: 0.0

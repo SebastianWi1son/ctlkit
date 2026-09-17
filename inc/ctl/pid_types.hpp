@@ -52,6 +52,7 @@ struct PIDState {
 struct PIDStatus {
     bool out_saturated_ = false;            // is_out_limited
     bool i_saturated_ = false;              // 被采纳的积分值真被限幅器削过（分离冻结不算 —— TODO T3）
+    bool i_frozen_ = false;                 // 本拍因积分分离而冻结（|error| > thresh_i_sep_）：候选值被丢弃、积分未更新
     bool dt_rejected_ = false;              // 本拍 dt 非法（< 1e-9 或 > 0.5，含 <= 0）已被替换为 1ms（TODO T2）
 };
 

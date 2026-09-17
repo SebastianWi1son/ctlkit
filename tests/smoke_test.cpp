@@ -361,8 +361,8 @@ static void test_dt_guard_lower_bound() {
     CHECK(!pid.status().dt_rejected_);
 }
 
-static void test_i_saturated_semantics() {
-    // T3：i_saturated_ = 「被采纳的积分值真被削过」；分离冻结时候选值虽被削但不生效 → 不算饱和
+static void test_i_status_semantics() {
+    // T3 + 分离出口：i_saturated_ = 「被采纳的积分值真被削过」；i_frozen_ = 「本拍因分离而未积分」
     ctl::PIDConfig cfg;
     cfg.gains_.ki_ = 2000.0f;
     cfg.limits_.limit_i_ = 0.5f;
@@ -371,6 +371,7 @@ static void test_i_saturated_semantics() {
     ctl::PID pid(cfg);
     CHECK(near(pid.calc(1.0f, 0.0f, 1e-3f), 0.0f));                 // kp=0、积分被冻结 → 输出 0
     CHECK(!pid.status().i_saturated_);
+    CHECK(pid.status().i_frozen_);                                   // 分离生效 → 冻结位
     CHECK(near(pid.get_state().integral_, 0.0f));
 
     ctl::PIDConfig cfg2;
@@ -380,6 +381,7 @@ static void test_i_saturated_semantics() {
     ctl::PID pid2(cfg2);
     CHECK(near(pid2.calc(1.0f, 0.0f, 1e-3f), 0.5f));                // 输出 = 被采纳的积分（已削到 0.5）
     CHECK(pid2.status().i_saturated_);
+    CHECK(!pid2.status().i_frozen_);                                 // 未分离 → 不冻结
     CHECK(near(pid2.get_state().integral_, 0.5f));
 }
 
@@ -413,7 +415,7 @@ int main() {
     test_anchor_closed_loop();
     test_anchor_antiwindup();
     test_dt_guard_lower_bound();
-    test_i_saturated_semantics();
+    test_i_status_semantics();
     test_uncovered_paths();
     test_lpf();
     test_ramp();

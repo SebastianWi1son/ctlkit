@@ -64,7 +64,7 @@ generated: false
 
 ```cpp
 struct PIDState  { float error_, p_term_, d_term_, integral_, output_; };   // 数值快照（integral_ 即 I 项贡献）
-struct PIDStatus { bool out_saturated_, i_saturated_, dt_rejected_; };      // 本拍瞬态布尔量
+struct PIDStatus { bool out_saturated_, i_saturated_, i_frozen_, dt_rejected_; };  // 本拍瞬态布尔量
 // 粘滞的 input_fault 不在 PIDStatus 里（生命周期不同）—— 单独出口 bool input_fault()
 ```
 
@@ -73,10 +73,12 @@ struct PIDStatus { bool out_saturated_, i_saturated_, dt_rejected_; };      // �
 | `get_state()` | 最近一次 `calc` 的分量快照（零拷贝，const 引用） | 每拍覆盖 |
 | `status().out_saturated_` | 本拍输出**真被** `limits_.limit_out_` 钳位（限幅前取未钳位量比较；`limit_out_ <= 0` 不限幅 → 恒 false） | 本拍瞬态 |
 | `status().i_saturated_` | **被采纳的积分值真被** `limits_.limit_i_` 削过（`limit_i_ <= 0` → 恒 false）。积分分离冻结时候选值虽被削但**不生效** → 不算饱和（与 D-3"只报生效的钳位"一致） | 本拍瞬态 |
+| `status().i_frozen_` | 本拍因**积分分离**而冻结（`\|error\| > thresh_i_sep_`）：候选值被丢弃、`integral_` 未更新。与 `i_saturated_` 互斥（冻结那拍饱和恒 false）；分离关闭时恒 false | 本拍瞬态 |
 | `status().dt_rejected_` | 本拍 `dt` 非法（`< 1e-9` 或 `> 0.5`，含 `<= 0`）已被替换为 `1ms`；用来区分"正常周期"与"守卫兜底" | 本拍瞬态 |
 | `input_fault()` | 曾收到 NaN/Inf（含 `PIDPorts.meas_dot_` 指向非有限值）即置位 | **粘滞**，只有 `reset()` 清 |
 
-- 只报"钳位"，**不报**输出斜坡（`tunings_.max_rate_out_`）与积分分离——那两者是设计意图，不是饱和（roadmap D-3）。
+- 报**三个客观事实**：限幅钳位（`out_saturated_` / `i_saturated_`）、分离冻结（`i_frozen_`）、dt 兜底（`dt_rejected_`）；
+  **不报**输出斜坡（`tunings_.max_rate_out_`）—— 斜坡限的是变化率，是设计意图（roadmap D-3 的延伸：只报客观发生的事，不报设计意图）。
 
 ## 状态与复位
 
@@ -143,6 +145,7 @@ struct PIDPorts {
 
 | 版本 | 变更 |
 |---|---|
+| Unreleased | 新增 `status().i_frozen_`（分离冻结出口，与 `i_saturated_` 互补：一个答"顶住了吗"、一个答"这拍积分了吗"） |
 | Unreleased | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
 | Unreleased | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
 | Unreleased | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |

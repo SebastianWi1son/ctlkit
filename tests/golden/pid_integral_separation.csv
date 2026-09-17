@@ -2,7 +2,7 @@
 # case: pid_integral_separation
 # component: pid
 # oracle: oracle/refctl.py
-# oracle-sha256: 143e333176f1
+# oracle-sha256: adc63ee935ba
 # params: kp=4.0 ki=200.0 kd=0.0 limit_out=100.0 limit_i=100.0 thresh_i_sep=0.5
 # tol: 5.850128174218923e-06
 # dev: 2.3126602177736544e-07

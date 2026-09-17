@@ -2,7 +2,7 @@
 # case: ramp_frozen
 # component: ramp
 # oracle: oracle/refctl.py
-# oracle-sha256: 143e333176f1
+# oracle-sha256: adc63ee935ba
 # params: max_rate=0.0
 # tol: 1e-06
 # dev: 0.0
