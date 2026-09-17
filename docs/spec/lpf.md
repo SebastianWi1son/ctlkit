@@ -4,7 +4,7 @@ generated: false
 ---
 # LPF — 行为契约
 
-> 源码：`../../inc` + `src/lpf.cpp` ｜ 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.1
+> 源码：`../../inc` + `src/lpf.cpp` ｜ 血缘：cyclotron `FOC_MATH_SPEC.md` §3.1（已退役）；精确定义**以本文为准**
 
 ## 接口
 
@@ -41,7 +41,7 @@ return prev_
 
 - PID 的 D 项滤波（`d_filter_Tf_` 透传给内部 LPF）。
 - SmoothPlanner 的两级圆角（同一 `Tf` 先用两级，构成二阶低通）。
-- 与 Ramp 的 0 语义**不同**：LPF 的 0 = 直通；Ramp 的 0 = 冻结（见 `ramp.md`，D-1 待定案）。
+- 与 Ramp 的 0 语义**不同**：LPF 的 0 = 直通；Ramp 的 0 = 冻结（见 `ramp.md`；0 语义已定案，docs/roadmap.md §6 D-1）。
 
 ## 变更历史
 
