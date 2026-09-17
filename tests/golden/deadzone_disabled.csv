@@ -2,7 +2,7 @@
 # case: deadzone_disabled
 # component: deadzone
 # oracle: oracle/refctl.py
-# oracle-sha256: da688f0bd5ac
+# oracle-sha256: adc63ee935ba
 # params: range=0.0 soft=1.0
 # tol: 1.0238418578213384e-06
 # dev: 2.980232227667301e-09

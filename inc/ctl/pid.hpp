@@ -35,8 +35,7 @@ private:
     // ----- Math Tools -----
     static float fabs(float val);
     static float constrainf(float val, float limit);
-    static bool is_finite(float x) { return (x == x) && (x <= 3.402823466e+38f) && (x >= -3.402823466e+38f); }
-
+    static bool is_finite(float x);
     // --- property ---
     PIDConfig cfg_;
     float integral_;

@@ -21,7 +21,7 @@ generated: false
 | 原语层保留自己的语义 | `Ramp(0)` = **冻结输出**（不是“关闭”）；PID 关闭斜坡时在**构造期**把速率归一化为“无上限”，不改 `Ramp` 的 0 语义、也不依赖它 |
 | dt 守卫 | **仅 PID 内部**有：`dt <= 0 或 dt > 0.5` → 强制 `1ms`；LPF / Ramp / SmoothPlanner **无守卫**，调用方保证 `dt > 0` |
 | 限幅 | 对称 `clamp(x, ±limit)`；非对称限幅为候选 A3（未实现） |
-| 状态注入 | `LPF` / `Ramp` / `SmoothPlanner` 有 `set_state(x)`（bumpless transfer）；`PID` 暂无（候选 A2，未实现）；`Deadzone` 无状态，不需要 |
+| 状态注入 | `LPF` / `Ramp` / `SmoothPlanner` 有 `set_state(x)`；`PID` 有 `set_integral(x)`（A2 已落地）与 `set_gains()`（在线改增益）；`Deadzone` 无状态，不需要 |
 | 复位语义 | `reset()` 只清运行时状态，不动配置；`PID::reset()` 不清 ramp/LPF 配置（构造时固定） |
 
 ## 组件索引

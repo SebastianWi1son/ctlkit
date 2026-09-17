@@ -9,7 +9,7 @@
 
 namespace ctl {
 
-// --- 配置（构造期一次注入，构造后不可变）---
+// --- 配置（构造期一次注入；构造后只有 gains_ 可在线上改（PID::set_gains），其余字段不可变）---
 struct PIDGains {
     float kp_ = 0.0f;
     float ki_ = 0.0f;
@@ -31,6 +31,21 @@ struct PIDConfig {
     PIDGains gains_;
     PIDLimits limits_;
     PIDTunings tunings_;
+
+    // --- 具名链式设置器（v0.1.1 只增不改）---
+    // 为什么：`PIDConfig{1.0f, 50.0f, 0, 3.0f, 3.0f, 0, 0, 0}` 只能靠“数位置”读，且往组中间插字段就静默错位；
+    //         C++20 的指定初始化（`.kp_ = 1.0f`）在本库的 C++11 底线不可用 → 用具名设置器代替。
+    // 规则：设置器名 = 字段名去掉尾下划线；返回 *this 支持链式；未设置的字段保持默认（全 0）。
+    // 用法：const PIDConfig cfg = PIDConfig{}.kp(1.0f).ki(50.0f).limit_out(3.0f).limit_i(3.0f);
+    // 注意：本结构保持**聚合类型**（位置初始化与下游 `Config` 聚合仍可用）→ 只加成员函数、不加构造函数。
+    PIDConfig &kp(float v)           { gains_.kp_ = v;             return *this; }
+    PIDConfig &ki(float v)           { gains_.ki_ = v;             return *this; }
+    PIDConfig &kd(float v)           { gains_.kd_ = v;             return *this; }
+    PIDConfig &limit_out(float v)    { limits_.limit_out_ = v;     return *this; }
+    PIDConfig &limit_i(float v)      { limits_.limit_i_ = v;       return *this; }
+    PIDConfig &thresh_i_sep(float v) { tunings_.thresh_i_sep_ = v; return *this; }
+    PIDConfig &max_rate_out(float v) { tunings_.max_rate_out_ = v; return *this; }
+    PIDConfig &d_filter_Tf(float v)  { tunings_.d_filter_Tf_ = v;  return *this; }
 };
 
 // --- 每拍端口（模块 5 起；calc 签名冻结，新特性只往这里加字段）---
@@ -51,7 +66,9 @@ struct PIDState {
 // 本拍瞬态布尔量（A 方案）：粘滞的 input_fault 不在此，见 PID::input_fault()
 struct PIDStatus {
     bool out_saturated_ = false;            // is_out_limited
-    bool i_saturated_ = false;              // is_i_out_limited
+    bool i_saturated_ = false;              // 被采纳的积分值真被限幅器削过（分离冻结不算 —— TODO T3）
+    bool i_frozen_ = false;                 // 本拍因积分分离而冻结（|error| > thresh_i_sep_）：候选值被丢弃、积分未更新
+    bool dt_rejected_ = false;              // 本拍 dt 非法（< 1e-9 或 > 0.5，含 <= 0）已被替换为 1ms（TODO T2）
 };
 
 }  // namespace ctl

@@ -6,20 +6,27 @@ generated: false
 
 > 源码：`inc/ctl/pid.hpp`（类）+ `inc/ctl/pid_types.hpp`（配置/端口/观测类型）+ `src/pid.cpp`
 > 血缘：lunokhod `control/wheel` → cyclotron `foc::algo::PID` → ctlkit `ctl::PID`（库化时行为未变，M0 起按本文件演进）
-> 精确定义源自 cyclotron `FOC_MATH_SPEC.md` §3.4
+> 血缘：cyclotron `FOC_MATH_SPEC.md` §3.4（该文档已随本库独立而退役）；精确定义**以本文为准**
 
 ## 接口
 
 | 成员 | 说明 |
 |---|---|
 | `PID(const PIDConfig &)` | 配置一次注入，构造后不可变 |
-| `CTL_NODISCARD float calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` | 每拍计算；`ports` = 每拍端口（见下节），缺省 `nullptr` = 旧行为（环内差分）。**签名自模块 5 起冻结**：新特性只往 `PIDPorts` 加字段。返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底） |
+| `CTL_NODISCARD float calc(cmd, measure, dt, const PIDPorts *ports = nullptr)` | 每拍计算；`ports` = 每拍端口（见下节），缺省 `nullptr` = 旧行为（环内差分）。**签名自模块 5 起冻结**：新特性只往 `PIDPorts` 加字段。返回值不可丢弃（C++17 标准属性，C++11 用 `__attribute__((warn_unused_result))` 兜底）。⚠ 兼容性提醒：C++11 路径下 GCC **不认 `(void)calc(...)` 显式丢弃**（clang 与 C++17 的 `[[nodiscard]]` 认），必须把返回值赋给变量再用 |
 | `void reset()` | 清全部运行时状态（含 `last_output_`）；不动 `cfg_` |
 | `void set_integral(float x)` | 积分注入（bumpless transfer）；注入值 **clamp 到 `limit_i_`**（`limit_i_ <= 0` 则不限幅） |
+| `void set_gains(const PIDGains &g)` | 在线改增益：**成组替换**；只动 `gains_`（`tunings_` 里的滤波/斜坡常数构造期已固化，在线改需重建，不在本接口范围） |
+| `const PIDState &get_state() const` | 观测出口：**零拷贝**引用内部缓存（内容 = 最近一次 `calc` 的结果） |
+| `PIDStatus status() const` | 观测出口：按值返回（本拍两个饱和标志，语义见「观测出口」节） |
+| `bool input_fault() const` | 观测出口：**粘滞**故障标志（NaN/Inf 回退那拍置位，只有 `reset()` 清） |
 
 ## 配置（`PIDConfig`，构造后不可变）
 
 `PIDConfig` 按域分三组（`PIDGains` / `PIDLimits` / `PIDTunings`）；**字段名与旧版一致，无旧路径别名**（分组设计见 `../design/pid_config_and_ports.md`）。
+
+构造推荐**具名链式设置器**（`PIDConfig{}.kp(2.0f).ki(50.0f).limit_out(3.0f).limit_i(3.0f)`，名字 = 字段名去掉尾下划线）；
+结构与字段顺序**冻结且保持聚合**，故既有的位置初始化（`PIDConfig{a, b, ...}`）仍可用（理由与约束见 design 文档 §3.3）。
 
 | 字段 | 默认 | 语义 |
 |---|---|---|
@@ -35,7 +42,9 @@ generated: false
 ```
 ⓪ NaN/Inf 守卫：cmd / measure / dt 任一非有限 → 本拍**不更新任何状态**（含 D 滤波与输出斜坡的内部状态），
                  直接返回上一拍输出（`last_output_`；代码里写成自实现的 `is_finite`，不引 <cmath>）
-① dt 守卫：dt <= 0 或 dt > 0.5 → dt := 0.001
+     ⚠ 这一拍 `state()` / `status()` 也**保持上一拍内容不变**（含 `dt_rejected_`）——早退发生在写状态之前
+① dt 守卫：dt < 1e-9 或 dt > 0.5（含 dt <= 0）→ dt := 0.001，并置 status().dt_rejected_
+     （下界防 1/dt 溢出污染 D 状态；上界防垃圾 dt —— 见 docs/TODO.md T2）
 ② error = cmd - measure;  p_term = kp · error
 ③ I 项（梯形/Tustin）：
      i_temp  = integral + ki · dt · 0.5 · (error + error_prev)
@@ -55,10 +64,30 @@ generated: false
 ⑦ 记录输出：last_output = output（供 ⓪ 的非法输入路径回退；与 ⑥ 同属“状态写回”）
 ```
 
+## 观测出口（M1）
+
+```cpp
+struct PIDState  { float error_, p_term_, d_term_, integral_, output_; };   // 数值快照（integral_ 即 I 项贡献）
+struct PIDStatus { bool out_saturated_, i_saturated_, i_frozen_, dt_rejected_; };  // 本拍瞬态布尔量
+// 粘滞的 input_fault 不在 PIDStatus 里（生命周期不同）—— 单独出口 bool input_fault()
+```
+
+| 出口 | 语义 | 生命周期 |
+|---|---|---|
+| `get_state()` | 最近一次 `calc` 的分量快照（零拷贝，const 引用） | 每拍覆盖 |
+| `status().out_saturated_` | 本拍输出**真被** `limits_.limit_out_` 钳位（限幅前取未钳位量比较；`limit_out_ <= 0` 不限幅 → 恒 false） | 本拍瞬态 |
+| `status().i_saturated_` | **被采纳的积分值真被** `limits_.limit_i_` 削过（`limit_i_ <= 0` → 恒 false）。积分分离冻结时候选值虽被削但**不生效** → 不算饱和（与 D-3"只报生效的钳位"一致） | 本拍瞬态 |
+| `status().i_frozen_` | 本拍因**积分分离**而冻结（`\|error\| > thresh_i_sep_`）：候选值被丢弃、`integral_` 未更新。与 `i_saturated_` 互斥（冻结那拍饱和恒 false）；分离关闭时恒 false | 本拍瞬态 |
+| `status().dt_rejected_` | 本拍 `dt` 非法（`< 1e-9` 或 `> 0.5`，含 `<= 0`）已被替换为 `1ms`；用来区分"正常周期"与"守卫兜底" | 本拍瞬态 |
+| `input_fault()` | 曾收到 NaN/Inf（含 `PIDPorts.meas_dot_` 指向非有限值）即置位 | **粘滞**，只有 `reset()` 清 |
+
+- 报**三个客观事实**：限幅钳位（`out_saturated_` / `i_saturated_`）、分离冻结（`i_frozen_`）、dt 兜底（`dt_rejected_`）；
+  **不报**输出斜坡（`tunings_.max_rate_out_`）—— 斜坡限的是变化率，是设计意图（roadmap D-3 的延伸：只报客观发生的事，不报设计意图）。
+
 ## 状态与复位
 
-- 内部状态：`integral_`、`error_prev_`、`measure_prev_`、`last_output_`、`d_filter_`（LPF）、`ramp_out_`（Ramp）；全部私有。
-- `reset()`：上述状态全清零（等价于"从未运行过"）；**不触碰** `cfg_`。
+- 内部状态：`integral_`、`error_prev_`、`measure_prev_`、`last_output_`、`state_` / `status_` / `input_fault_`（观测缓存）、`d_filter_`（LPF）、`ramp_out_`（Ramp）；全部私有。
+- `reset()`：上述状态全清零（含观测缓存与 `input_fault_`，等价于"从未运行过"）；**不触碰** `cfg_`。
 - 注意：`reset()` 后 `measure_prev_ = 0`，若首拍 measure 非 0，D 项会出现一拍脉冲
   （微分先行的正常语义；bumpless 场景用 `set_integral` / 外部微分注入解决）。
 
@@ -87,7 +116,7 @@ struct PIDPorts {
   返回上一拍输出；下一拍给合法输入即可继续，无需 `reset()`。
 - 为什么这样：① 非法值进积分器会**永久锁死**（`constrainf(NaN)` 两个比较均假 → 原样返回 NaN）；
   ② 返回上一拍输出对 FOC 最安全（电压指令不跳变）；③ 不更新状态才能保证"污染零传播"。
-- ⚠ 目前是**静默回退**：上层无法区分"正常输出"与"因非法输入回退"——fault 出口待 M1 的 `PIDFlags` 补（roadmap D-5）。
+- 静默回退的**区分手段**：`input_fault()`（粘滞）——M1 已补；上层据此决定是否切断/降级（数值本身不跳变）。
 - 覆盖：`tests/smoke_test.cpp` 的 `test_pid_nan_recovery`（含积分状态不被污染、恢复后继续累积）；
   oracle（`oracle/refctl.py`）同步实现了该行为。
 
@@ -113,8 +142,6 @@ struct PIDPorts {
 | 编号 | 缺口 | 影响 |
 |---|---|---|
 | B1 | 静态 clamp 抗饱和，无条件积分/back-calculation | 输出饱和期间积分仍可能涨到 `limit_i_`，退出饱和有迟滞 |
-| D1/D3 | 无状态 getter / 饱和标志 | 无法观测 P/I/D 贡献与饱和状态，调参/诊断/自整定无从下手 |
-| D3/M1 | 非法输入无 fault 出口 | 现在是静默回退（返回上一拍输出），上层无法区分"正常"与"回退" |
 | A3 | 仅对称限幅 | 再生等非对称工况表达不了 |
 | — | 无前馈、无目标滤波 | 跟踪性能与抗扰能力的提升空间（F1/F2） |
 
@@ -122,8 +149,12 @@ struct PIDPorts {
 
 | 版本 | 变更 |
 |---|---|
-| Unreleased | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
-| Unreleased | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |
-| Unreleased | M0：「`0` 语义统一（D-1）——限幅类 `<= 0` = 不限幅；斜坡 0=关闭在构造期归一化；**行为变更点：`limit = 0` 的既有配置** |
-| Unreleased | M0 部分：NaN/Inf 守卫（返回上一拍输出、零污染）、`set_integral`（clamp 注入）、`CTL_NODISCARD` |
+| 0.1.1 | 新增 `PIDConfig` 具名链式设置器（8 个字段各一个；只增不改，结构仍为聚合，位置初始化不失效） |
+| 0.1.1 | 新增 `status().i_frozen_`（分离冻结出口，与 `i_saturated_` 互补：一个答"顶住了吗"、一个答"这拍积分了吗"） |
+| 0.1.1 | 审计修复：`dt` 守卫加下界（`dt < 1e-9`）+ `status().dt_rejected_`；`i_saturated_` 改为"只报被采纳的钳位"（TODO T2/T3） |
+| 0.1.0 | M1 观测出口：`PIDState` / `PIDStatus` + `get_state()` / `status()` / `input_fault()` / `set_gains`（纯新增，行为不变） |
+| 0.1.0 | M2/A1：`PIDPorts` 首次登场（`meas_dot_` 外部微分注入）+ `calc` 签名冻结（尾部默认参数端口） |
+| 0.1.0 | 配置分组：`PIDConfig` → `PIDGains` / `PIDLimits` / `PIDTunings`（字段名不变、无旧路径别名；行为逐字等价） |
+| 0.1.0 | M0：「`0` 语义统一（D-1）——限幅类 `<= 0` = 不限幅；斜坡 0=关闭在构造期归一化；**行为变更点：`limit = 0` 的既有配置** |
+| 0.1.0 | M0 部分：NaN/Inf 守卫（返回上一拍输出、零污染）、`set_integral`（clamp 注入）、`CTL_NODISCARD` |
 | v0.0.1 | 库化（`foc::algo` → `ctl`），行为未变 |

@@ -5,7 +5,7 @@ generated: false
 # ctlkit
 
 > 个人上游基础算法库：**嵌入式实时控制原语**（控制 + 滤波）。
-> 诚实定位：一组小而确定的离散时间控制组件（目前 4 个，见下）。**不是**控制框架，也不提供调度、参数管理或通信。
+> 诚实定位：一组小而确定的离散时间控制组件（见下表）。**不是**控制框架，也不提供调度、参数管理或通信。
 
 下游项目（`cyclotron/foc`、`lunokhod/actuator/wheel`）的 PID / LPF / Ramp 等组件以本库为**唯一事实源**，
 从本库同步代码；此前分散在多个仓库的改动、注释、决策在此统一沉淀。
@@ -76,10 +76,23 @@ ctest --test-dir build --output-on-failure
 
 ## 下游消费方式
 
-- 现阶段： **拷贝** `inc` 与 `src/*.cpp` 进下游工程（嵌入式项目惯例）；
-  拷贝文件头保留来源戳与版本，便于溯源与 diff。
-- 下游：`cyclotron/foc`、`lunokhod/actuator/wheel`。迁移与双副本同步策略见
-  [docs/roadmap.md](docs/roadmap.md) §6 D-6（本库为上游，下游只读消费）。
+**整目录 vendor + 转发头**（已在 cyclotron/foc 与 lunokhod/actuator/wheel 落地）：
+
+```bash
+mkdir -p <下游>/third_party/ctlkit && cp -r inc src <下游>/third_party/ctlkit/   # 1 逐字拷
+python3 scripts/downstream_diff.py <下游>                                        # 5 校验（含转发头合规）
+```
+
+2. 在 vendor 目录写 `VERSION`：版本 + 上游 sha + 拷贝日期 + 校验命令（未发布就记分支 + sha，别写成版本号）。
+3. 下游旧位置的头文件改成**转发头**：带标记行 `// ctlkit-forwarder`，内容为包含上游头 + `using` 别名。
+   下游原有的类名与命名空间（含历史遗留的全局名）都保留 → **调用点零改动**。
+4. 接构建：include 加 `.../ctlkit/inc`，编译 `.../ctlkit/src` 下 5 个 `.cpp`（替代下游自己的实现文件）。
+
+- 演练记录（上游 sha / 下游基线 sha / 三条验收结论）见 [docs/migration_WORK.md](docs/migration_WORK.md) §4。
+- 纪律：下游**只改调用点**，库文件一律从上游拷；升级上游 = 重拷 vendor 目录，diff 脚本守门。
+- 迁移必读的两条：① 配置字段由平铺变分组（`cfg.gains_.kp_` / `cfg.limits_.limit_out_`），
+  推荐具名链式 `PIDConfig{}.kp(1.0f).limit_out(1e6f)`；② `calc` 带 `nodiscard` ——
+  下游若有只驱动不断言的裸调用，`-Werror` 下会直接报错，补断言或显式接住返回值。
 
 ## 约束与兼容
 
@@ -95,13 +108,14 @@ ctest --test-dir build --output-on-failure
 | `docs/design/` | 打算**怎么改**（设计稿） | ✅ 允许，实现后沉淀进 spec |
 | `docs/research/` | **为什么**这么设计（调研/对比/归档） | ✅ 允许，作为历史记录 |
 | `docs/roadmap.md` | 接下来做什么、多久 | ✅ 滚动更新 |
+| `docs/TODO.md` | 已核实但暂不影响使用的问题 | ✅ 滚动更新 |
 
 文档的类与位置、命名、机器门禁的规矩见 [docs/README.md](docs/README.md) 与 [AGENTS.md](AGENTS.md)；
 改完任何文档跑 `python3 scripts/check_docs.py`。
 
 ## 版本与许可
 
-- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.0`（API 冻结版）**。
+- 版本见 [CHANGELOG.md](CHANGELOG.md)；当前 **`v0.1.1`**（在 v0.1.0 冻结面上的只增版本，含一处行为修正）。版本的**唯一事实源**是 `inc/ctl/version.hpp`（`CMakeLists.txt` 从它解析；下游拷贝后靠它自证版本）。
 - 许可：**MIT**（见 [LICENSE](LICENSE)）。
 - 源码归档快照（第三方 `Liu-Curiousity/pid` 与历史 `cyclotron_foc` 副本）**不随仓库分发**：
   本地保留在 `docs/research/reference/`（已 gitignore）；第三方部分无 LICENSE，不可再分发。
@@ -116,4 +130,4 @@ major（1.0 起）：才允许破坏 —— 改字段名/语义、改签名、�
 
 - 已冻结面：`calc` 签名、`PIDConfig` / `PIDPorts` / `PIDState` / `PIDStatus` 的既有字段、
   五个组件（PID · LPF · Ramp · SmoothPlanner · Deadzone）的公开接口、`inc/ctl/` 的文件布局。
-- 行为兼容由 `tests/golden/`（19 例黄金向量）看守：任何“默认关闭 = 旧行为”的改动必须证明黄金全绿。
+- 行为兼容由 `tests/golden/` 的黄金向量看守（条数以该目录为准）：任何“默认关闭 = 旧行为”的改动必须证明黄金全绿。
