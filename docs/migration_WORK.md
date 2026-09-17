@@ -16,6 +16,9 @@ accepted: false
 | ① | cyclotron/foc | 五个组件全在用（PID/LPF/Ramp/SmoothPlanner/Deadzone）；上游 spec 已接管数学权威 | ✅ **2026-09-17 完成**（记录见 §4） |
 | ② | lunokhod/actuator/wheel | 血缘源头（自带 pid/lpf/ramp/smooth_planner 四份副本，且**在全局命名空间**）；① 验过的流程直接套 | ✅ **2026-09-17 完成**（记录见 §4） |
 
+> **下游影响（按用户安排在各项目内处理，不属本单）**：lunokhod 的消费方 `fw_poc` 与 `KND_Trial/app` 各有
+> 一处平铺字段写法（约 6 行），迁移后**编译不过**（响亮报错，非静默）；两处数值均不在 0 语义雷区。
+>
 > **计划外消费者**（本机扫描发现，均用平铺具名字段写法，不在本单范围内）：`KND_Trial/app`、`fw_poc`、`lunokhod/chassis_loop`。
 > （外部仓库只写目录，不写其中的文件名 —— 门禁 R5 按本仓相对路径校验，写文件名会踩空）三者的 `ki_`/`limit_i_` 组合经核对均不在 0 语义雷区（见 §2.3），待接入时另行开单。
 

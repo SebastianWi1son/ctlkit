@@ -5,7 +5,7 @@ accepted: false
 ---
 # PID 配置与端口设计（设计稿 v0.1）
 
-> **状态**：**配置分组已落地**（Unreleased）。实际命名以源码为准：`PIDGains` / `PIDLimits` / `PIDTunings`
+> **状态**：**配置分组已落地**（v0.1.0 冻结面）。实际命名以源码为准：`PIDGains` / `PIDLimits` / `PIDTunings`
 > + `PIDConfig` 成员 `gains_` / `limits_` / `tunings_`；**字段名与旧版一致、不保留旧路径别名**。
 > **支撑类型已拆到 `inc/ctl/pid_types.hpp`**（v0.1.0 冻结面之一；`pid.hpp` 只留类）。
 > **端口结构体已落地（模块 5 / A1）**：`PIDPorts` 当前只有 `meas_dot_`（外部微分注入），
